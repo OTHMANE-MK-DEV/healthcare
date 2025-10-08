@@ -14,6 +14,10 @@ import Planning from "./pages/patient/Planning";
 import HealthcareLogin from "./pages/auth/Login";
 import HealthcareRegister from "./pages/auth/Register";
 import History from "./pages/patient/History";
+import PatientOverview from "./pages/patient/Overview";
+import DoctorOverview from "./pages/doctor/Overview";
+import AdminOverview from "./pages/admin/Overview";
+import VerifyEmail from "./pages/auth/VerifyEmail";
 // import PatientDashboard from "./pages/patient/PatientDashboard";
 // import DoctorDashboard from "./pages/doctor/DoctorDashboard";
 // import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -33,14 +37,7 @@ function App() {
         {/* Patient routes */}
         <Route element={<PatientLayout />}>
           {/* <Route path="/patient/dashboard" element={<PatientDashboard />} /> */}
-          <Route
-            path="/patient"
-            element={
-              <div className="flex min-h-full flex-col items-center justify-center">
-                <h1 className="text-2xl mb-4">Patient</h1>
-              </div>
-            }
-          />
+          <Route path="/patient" element={<PatientOverview />} />
           <Route path="/patient/planning" element={<Planning />} />
           <Route path="/patient/histories" element={<History />} />
         </Route>
@@ -48,16 +45,17 @@ function App() {
 
         {/* Doctor routes */}
         <Route element={<DoctorLayout />}>
-          {/* <Route path="/doctor/dashboard" element={<DoctorDashboard />} /> */}
+          <Route path="/doctor" element={<DoctorOverview />} />
         </Route>
 
         {/* Admin routes */}
         <Route element={<AdminLayout />}>
-          {/* <Route path="/admin/dashboard" element={<AdminDashboard />} /> */}
+          <Route path="/admin" element={<AdminOverview />} />
         </Route>
 
         <Route path="/login" element={<HealthcareLogin />} />
         <Route path="/register" element={<HealthcareRegister />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />

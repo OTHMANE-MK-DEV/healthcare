@@ -78,15 +78,30 @@ export default function HealthcareRegister() {
     setIsLoading(true);
     const finalData = { ...formData, ...data };
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    console.log('Registration data:', finalData);
-    // Here you would send the data to your backend
-    // await fetch('/api/register', { method: 'POST', body: JSON.stringify(finalData) });
-    
-    setIsLoading(false);
-    setCurrentStep(4);
+    try {
+      const response = await fetch('http://localhost:5001/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(finalData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Show success message with email verification alert
+        setCurrentStep(4);
+      } else {
+        // Handle registration error
+        alert(result.message || 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const progressPercentage = (currentStep / 4) * 100;
@@ -512,28 +527,27 @@ export default function HealthcareRegister() {
                 <ul className="space-y-2 text-gray-700">
                   <li className="flex items-start gap-2">
                     <span className="text-lime-600 font-bold">1.</span>
-                    <span>Check your email <strong>{formData.email}</strong> for a confirmation link</span>
+                    <span>Check your email <strong>{formData.email}</strong> for a verification link</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-lime-600 font-bold">2.</span>
-                    <span>Complete your profile verification within 24 hours</span>
+                    <span>Click the verification link to activate your account</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-lime-600 font-bold">3.</span>
-                    <span>You'll receive a welcome package with platform guidelines</span>
+                    <span>
+                      {selectedRole === 'doctor' 
+                        ? 'After verification, wait for admin approval (24-48 hours)'
+                        : 'After verification, you can login to your account'
+                      }
+                    </span>
                   </li>
-                  {/* {selectedRole === 'doctor' && (
+                  {selectedRole === 'doctor' && (
                     <li className="flex items-start gap-2">
                       <span className="text-lime-600 font-bold">4.</span>
-                      <span>Medical license verification may take 2-3 business days</span>
+                      <span>You will receive an email once your account is approved</span>
                     </li>
                   )}
-                  {selectedRole === 'patient' && (
-                    <li className="flex items-start gap-2">
-                      <span className="text-lime-600 font-bold">4.</span>
-                      <span>Schedule your first health assessment appointment</span>
-                    </li>
-                  )} */}
                 </ul>
               </div>
 

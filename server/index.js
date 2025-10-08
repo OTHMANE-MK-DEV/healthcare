@@ -7,6 +7,7 @@ import connectDB from "./config/db.js";
 import { initSockets } from "./sockets/socket.js";
 import { startECGSimulation } from "./controllers/ecgController.js";
 import ECG from "./models/ECG.js";
+import authRouter from "./routes/authRoutes.js";
 
 dotenv.config();
 
@@ -20,6 +21,10 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+
+app.use('/api/auth', authRouter);
+
 
 connectDB();
 
