@@ -13,6 +13,7 @@ import { Button } from "./components/ui/button";
 import Planning from "./pages/patient/Planning";
 import HealthcareLogin from "./pages/auth/Login";
 import HealthcareRegister from "./pages/auth/Register";
+import History from "./pages/patient/History";
 // import PatientDashboard from "./pages/patient/PatientDashboard";
 // import DoctorDashboard from "./pages/doctor/DoctorDashboard";
 // import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -41,6 +42,7 @@ function App() {
             }
           />
           <Route path="/patient/planning" element={<Planning />} />
+          <Route path="/patient/histories" element={<History />} />
         </Route>
         <Route path="/patient/ecg" element={<ECGRealtime />} />
 
