@@ -8,6 +8,9 @@ import { initSockets } from "./sockets/socket.js";
 import { startECGSimulation } from "./controllers/ecgController.js";
 import ECG from "./models/ECG.js";
 import authRouter from "./routes/authRoutes.js";
+// import bcrypt from 'bcryptjs'
+// import User from "./models/User.js"
+
 
 dotenv.config();
 
@@ -65,5 +68,28 @@ app.post("/api/ecg", async (req, res) => {
 
 // Test route
 app.get("/", (req, res) => res.json({ message: "Server running ✅" }));
+
+// const createAdmin = async () => {
+//   try {
+//     const hashedPassword = await bcrypt.hash("admin1234", 10);
+
+//     const admin = new User({
+//       username: "admin",
+//       email: "admin@school.com",
+//       password: hashedPassword,
+//       role: "admin",
+//       isVerified: true,
+//       isApproved: true,
+//       status: "approved"
+//     });
+
+//     await admin.save();
+//     console.log("✅ Admin account created successfully!");
+//   } catch (error) {
+//     console.error("❌ Error creating admin account:", error);
+//   }
+// };
+
+// createAdmin();
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

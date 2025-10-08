@@ -28,6 +28,11 @@ import VerifyEmail from "./pages/auth/VerifyEmail";
 import Unauthorized from "./pages/Unauthorized";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
+import UserManagementDashboard from "./pages/admin/Users";
+import UserManagement from "./pages/admin/Users";
+import UserDetails from "./pages/admin/Users/UserDetails";
+import CreateUser from "./pages/admin/Users/CreateUser";
+import UpdateUser from "./pages/admin/Users/UpdateUser";
 
 function App() {
   return (
@@ -113,7 +118,7 @@ function App() {
 
       {/* Admin Routes - Protected */}
       <Route
-        path="/admin/*"
+        path="/admin"
         element={
           <AdminRoute>
             <AdminLayout />
@@ -121,7 +126,10 @@ function App() {
         }
       >
         <Route index element={<AdminOverview />} />
-        {/* Add more admin routes here */}
+        <Route path="users" element={<UserManagement />} />
+        <Route path="users/create" element={<CreateUser />} />
+        <Route path="users/:id" element={<UserDetails />} />
+        <Route path="users/:id/edit" element={<UpdateUser />} />
       </Route>
 
       {/* Fallback */}

@@ -8,13 +8,13 @@ const patientMenu = [
   {
     icon: LayoutDashboard,
     label: "Dashboard",
-    href: "/patient",
+    href: "/admin",
     description: "Patient Overview"
   },
   {
     icon: UsersIcon,
     label: "Users",
-    href: "/patient/users",
+    href: "/admin/users",
     description: "users managements"
   },
 ];
