@@ -21,7 +21,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["pending", "approved", "rejected"],
     default: "pending"
-  }
+  },
+  resetToken: String,
+  resetTokenExpiry: Date
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);

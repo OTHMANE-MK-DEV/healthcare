@@ -1,4 +1,5 @@
-import { useState } from 'react';
+// Update your HealthcareLogin component
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 const loginSchema = z.object({
   emailOrUsername: z.string().min(1, 'Username or email is required'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
   rememberMe: z.boolean().optional(),
 });
 
@@ -17,6 +18,7 @@ export default function HealthcareLogin() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const {
     register,
@@ -26,13 +28,80 @@ export default function HealthcareLogin() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log('Login data:', data);
+  // In your HealthcareLogin component - update the success handler
+const onSubmit = async (data: LoginFormData) => {
+  setIsLoading(true);
+  setError('');
+
+  try {
+    const response = await fetch('http://localhost:5001/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        emailOrUsername: data.emailOrUsername,
+        password: data.password,
+      }),
+      credentials: 'include',
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Store user data in localStorage
+      localStorage.setItem('user', JSON.stringify(result.data.user));
+      
+      // Store profile data if available
+      if (result.data.profile) {
+        localStorage.setItem('profile', JSON.stringify(result.data.profile));
+      }
+      
+      // Navigate based on role
+      switch (result.data.user.role) {
+        case 'patient':
+          navigate('/patient');
+          break;
+        case 'medecin':
+          navigate('/doctor');
+          break;
+        case 'admin':
+          navigate('/admin');
+          break;
+        default:
+          navigate('/dashboard');
+      }
+    } else {
+      setError(result.message || 'Login failed');
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    setError('Network error. Please try again.');
+  } finally {
     setIsLoading(false);
-    // Navigate based on role: /patient, /doctor, or /admin
-  };
+  }
+};
+
+  useEffect(() => {
+    const userString = localStorage.getItem('user');
+    if (userString) {
+      const user = JSON.parse(userString);
+      // Redirect based on role
+      switch (user.role) {
+        case 'patient':
+          navigate('/patient');
+          break;
+        case 'medecin':
+          navigate('/doctor');
+          break;
+        case 'admin':
+          navigate('/admin');
+          break;
+        default:
+          navigate('/');
+      }
+    }
+  }, [navigate]);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-lime-50 via-white to-lime-50 flex items-center justify-center p-4 relative overflow-hidden">
@@ -54,12 +123,13 @@ export default function HealthcareLogin() {
         <Zap size={32} />
       </div>
 
-      {/* Login Card - Full Width on Mobile, Centered with Max Width on Desktop */}
+      {/* Login Card */}
       <div className="relative w-full max-w-5xl z-10">
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-lime-200/50 overflow-hidden">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Left Side - Branding */}
             <div className="hidden md:flex flex-col justify-center items-center p-12 bg-gradient-to-br from-lime-500 to-lime-700 text-white relative overflow-hidden">
+              {/* ... your existing branding content ... */}
               <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
               
               <div className="relative z-10 text-center">
@@ -121,8 +191,15 @@ export default function HealthcareLogin() {
                 <p className="text-gray-600">Sign in to access your dashboard</p>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
+
               {/* Login Form */}
-              <div className="space-y-5">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 {/* Username/Email Input */}
                 <div className="space-y-2">
                   <label htmlFor="emailOrUsername" className="text-sm font-semibold text-gray-700 block">
@@ -178,18 +255,18 @@ export default function HealthcareLogin() {
                       Remember me
                     </span>
                   </label>
-                  <a
-                    href="#forgot"
+                  <button
+                    type="button"
+                    onClick={() => navigate('/forgot-password')}
                     className="text-lime-600 hover:text-lime-700 transition-colors font-semibold"
                   >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
 
                 {/* Login Button */}
                 <button
-                  type="button"
-                  onClick={handleSubmit(onSubmit)}
+                  type="submit"
                   disabled={isLoading}
                   className="w-full py-3.5 bg-gradient-to-r from-lime-500 to-lime-600 text-white font-bold rounded-xl hover:from-lime-600 hover:to-lime-600 focus:outline-none focus:ring-4 focus:ring-lime-300 transition-all duration-300 shadow-lg shadow-lime-500/30 hover:shadow-lime-500/50 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
@@ -217,7 +294,7 @@ export default function HealthcareLogin() {
                     'Sign In'
                   )}
                 </button>
-              </div>
+              </form>
 
               {/* Divider */}
               <div className="relative my-6">
@@ -229,50 +306,15 @@ export default function HealthcareLogin() {
                 </div>
               </div>
 
-              {/* Social Login */}
-              {/* <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  className="flex items-center justify-center px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 hover:border-lime-400 transition-all duration-300 font-medium"
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  
-                  Google
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center justify-center px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 hover:border-lime-400 transition-all duration-300 font-medium"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="#1877F2" viewBox="0 0 24 24">
-                    <path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z" />
-                  </svg>
-                  Facebook
-                </button>
-              </div> */}
+              {/* Social Login (optional) */}
+              {/* ... your social login buttons ... */}
 
               {/* Register Link */}
               <div className="mt-6 text-center text-sm">
                 <span className="text-gray-600">Don't have an account? </span>
                 <button
-                  onClick={()=> navigate('/register')}
-                  className="text-lime-400 hover:text-lime-500 font-bold transition-colors"
+                  onClick={() => navigate('/register')}
+                  className="text-lime-600 hover:text-lime-700 font-bold transition-colors"
                 >
                   Register now
                 </button>
@@ -282,13 +324,19 @@ export default function HealthcareLogin() {
               <div className="mt-6 text-center text-xs text-gray-500">
                 <p>
                   By signing in, you agree to our{' '}
-                  <a href="#terms" className="text-lime-600 hover:text-lime-700 transition-colors font-medium">
+                  <button
+                    onClick={() => navigate('/terms')}
+                    className="text-lime-600 hover:text-lime-700 transition-colors font-medium"
+                  >
                     Terms of Service
-                  </a>{' '}
+                  </button>{' '}
                   and{' '}
-                  <a href="#privacy" className="text-lime-600 hover:text-lime-700 transition-colors font-medium">
+                  <button
+                    onClick={() => navigate('/privacy')}
+                    className="text-lime-600 hover:text-lime-700 transition-colors font-medium"
+                  >
                     Privacy Policy
-                  </a>
+                  </button>
                 </p>
               </div>
             </div>

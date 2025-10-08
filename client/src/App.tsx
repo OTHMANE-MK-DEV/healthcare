@@ -1,11 +1,18 @@
 // App.tsx
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 
 // Layouts
 import PatientLayout from "./layouts/PatientLayout";
 import DoctorLayout from "./layouts/DoctorLayout";
 import AdminLayout from "./layouts/AdminLayout";
+
+// Route Components
+import PatientRoute from "./components/PatientRoute";
+import DoctorRoute from "./components/DoctorRoute";
+import AdminRoute from "./components/AdminRoute";
+import DoctorPatientRoute from "./components/DoctorPatientRoute";
+import PublicRoute from "./components/PublicRoute"; // Add this
 
 // Example pages
 import ECGRealtime from "./pages/patient/ECGRealtime";
@@ -18,48 +25,108 @@ import PatientOverview from "./pages/patient/Overview";
 import DoctorOverview from "./pages/doctor/Overview";
 import AdminOverview from "./pages/admin/Overview";
 import VerifyEmail from "./pages/auth/VerifyEmail";
-// import PatientDashboard from "./pages/patient/PatientDashboard";
-// import DoctorDashboard from "./pages/doctor/DoctorDashboard";
-// import AdminDashboard from "./pages/admin/AdminDashboard";
+import Unauthorized from "./pages/Unauthorized";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 
 function App() {
   return (
-      <Routes>
-        <Route
-          path="/"
-          element={
+    <Routes>
+      {/* Public Routes - Only accessible when NOT logged in */}
+      <Route
+        path="/"
+        element={
+          <PublicRoute>
             <div className="flex min-h-screen flex-col items-center justify-center">
               <h1 className="text-2xl mb-4">Home Page</h1>
               <Button>Click me</Button>
             </div>
-          }
-        />
-        {/* Patient routes */}
-        <Route element={<PatientLayout />}>
-          {/* <Route path="/patient/dashboard" element={<PatientDashboard />} /> */}
-          <Route path="/patient" element={<PatientOverview />} />
-          <Route path="/patient/planning" element={<Planning />} />
-          <Route path="/patient/histories" element={<History />} />
-        </Route>
-        <Route path="/patient/ecg" element={<ECGRealtime />} />
+          </PublicRoute>
+        }
+      />
+      
+      <Route 
+        path="/login" 
+        element={
+          <PublicRoute>
+            <HealthcareLogin />
+          </PublicRoute>
+        } 
+      />
+      
+      <Route 
+        path="/register" 
+        element={
+          <PublicRoute>
+            <HealthcareRegister />
+          </PublicRoute>
+        } 
+      />
 
-        {/* Doctor routes */}
-        <Route element={<DoctorLayout />}>
-          <Route path="/doctor" element={<DoctorOverview />} />
-        </Route>
+      <Route path="/forgot-password" element={<PublicRoute> <ForgotPassword /> </PublicRoute>} />
+      <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
+      
+      {/* Verify email can be accessed by anyone with the token */}
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      
+      <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* Admin routes */}
-        <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<AdminOverview />} />
-        </Route>
+      {/* Patient Routes - Protected */}
+      <Route
+        path="/patient/*"
+        element={
+          <PatientRoute>
+            <PatientLayout />
+          </PatientRoute>
+        }
+      >
+        <Route index element={<PatientOverview />} />
+        <Route path="planning" element={<Planning />} />
+        <Route path="histories" element={<History />} />
+      </Route>
 
-        <Route path="/login" element={<HealthcareLogin />} />
-        <Route path="/register" element={<HealthcareRegister />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+      {/* ECG Route - Accessible by both patients and doctors */}
+      <Route
+        path="/patient/ecg"
+        element={
+          <DoctorPatientRoute>
+            <ECGRealtime />
+          </DoctorPatientRoute>
+        }
+      />
 
-        {/* Fallback */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      {/* Doctor Routes - Protected */}
+      <Route
+        path="/doctor"
+        element={
+          <DoctorRoute>
+            <DoctorLayout />
+          </DoctorRoute>
+        }
+      >
+        <Route index element={<DoctorOverview />} />
+        <Route path="patients" element={<div className="flex min-h-screen flex-col items-center justify-center">
+              <h1 className="text-2xl mb-4">patients</h1>
+            </div>} />
+        {/* Add more doctor routes here */}
+      </Route>
+
+      {/* Admin Routes - Protected */}
+      <Route
+        path="/admin/*"
+        element={
+          <AdminRoute>
+            <AdminLayout />
+          </AdminRoute>
+        }
+      >
+        <Route index element={<AdminOverview />} />
+        {/* Add more admin routes here */}
+      </Route>
+
+      {/* Fallback */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 

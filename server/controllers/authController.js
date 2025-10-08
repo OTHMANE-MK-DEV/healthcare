@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer'
 import User from "../models/User.js"
 import Patient from "../models/Patient.js"
 import Medecin from "../models/Medecin.js"
+import crypto from 'crypto';
 
 
 // Email configuration
@@ -231,6 +232,8 @@ export const registerUser = async (req, res) => {
   }
 };
 
+
+
 // Email verification controller
 export const verifyEmail = async (req, res) => {
   try {
@@ -334,6 +337,331 @@ export const resendVerificationEmail = async (req, res) => {
 
   } catch (error) {
     console.error('Resend verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+
+export const loginUser = async (req, res) => {
+  try {
+    const { emailOrUsername, password } = req.body;
+
+    if (!emailOrUsername || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username/email and password are required'
+      });
+    }
+
+    // Find user by username or email
+    const user = await User.findOne({
+      $or: [
+        { username: emailOrUsername },
+        { email: emailOrUsername }
+      ]
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check if email is verified
+    if (!user.isVerified) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please verify your email before logging in'
+      });
+    }
+
+    // Check if account is approved (for doctors)
+    if (user.role === 'medecin' && !user.isApproved) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your account is pending admin approval. Please wait for approval email.'
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Generate JWT token (using your existing JWT_KEY)
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        username: user.username,
+        role: user.role 
+      },
+      process.env.JWT_KEY, // Using your existing JWT_KEY
+      { expiresIn: '7d' }
+    );
+
+    // Set token in HTTP-only cookie
+    res.cookie('jwt', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    // Get user profile based on role
+    let profile = null;
+    if (user.role === 'patient') {
+      profile = await Patient.findOne({ user: user._id });
+    } else if (user.role === 'medecin') {
+      profile = await Medecin.findOne({ user: user._id });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          isVerified: user.isVerified,
+          isApproved: user.isApproved
+        },
+        profile: profile ? {
+          id: profile._id,
+          nom: profile.nom,
+          prenom: profile.prenom,
+          CIN: profile.CIN,
+          ...(user.role === 'patient' && {
+            sexe: profile.sexe,
+            age: profile.age,
+            contact: profile.contact
+          })
+        } : null
+      }
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during login'
+    });
+  }
+};
+
+// Logout controller
+export const logoutUser = (req, res) => {
+  res.clearCookie('jwt');
+  res.status(200).json({
+    success: true,
+    message: 'Logged out successfully'
+  });
+};
+
+// Get current user
+export const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Get user profile based on role
+    let profile = null;
+    if (user.role === 'patient') {
+      profile = await Patient.findOne({ user: user._id });
+    } else if (user.role === 'medecin') {
+      profile = await Medecin.findOne({ user: user._id });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          isVerified: user.isVerified,
+          isApproved: user.isApproved
+        },
+        profile
+      }
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+
+// Generate reset token
+const generateResetToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+// Send password reset email
+const sendPasswordResetEmail = async (email, token, username) => {
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Reset Your Password - Healthcare Suptech',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #84cc16, #65a30d); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0;">Password Reset Request</h1>
+        </div>
+        <div style="padding: 30px; background: #f8fafc; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #1e293b;">Hello ${username},</h2>
+          <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+            You requested to reset your password. Click the button below to create a new password.
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" 
+               style="background: #84cc16; color: white; padding: 12px 30px; 
+                      text-decoration: none; border-radius: 8px; font-weight: bold;
+                      display: inline-block; font-size: 16px;">
+              Reset Password
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">
+            This link will expire in 1 hour. If you didn't request a password reset, 
+            please ignore this email.
+          </p>
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 12px;">
+              If the button doesn't work, copy and paste this link in your browser:<br>
+              <a href="${resetUrl}" style="color: #84cc16;">${resetUrl}</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+// Forgot password controller
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.'
+      });
+    }
+
+    // Generate reset token and expiry
+    const resetToken = generateResetToken();
+    const resetTokenExpiry = Date.now() + 3600000; // 1 hour
+
+    // Save reset token to user
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = resetTokenExpiry;
+    await user.save();
+
+    // Send reset email
+    try {
+      await sendPasswordResetEmail(email, resetToken, user.username);
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// Reset password controller
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and password are required'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Find user by valid reset token
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update user password and clear reset token
+    user.password = hashedPassword;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully. You can now login with your new password.'
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'
