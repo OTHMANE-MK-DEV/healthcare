@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
-import { socket } from "../../sockets/socket";
+import { socket } from "@/sockets/socket";
 import { useNavigate } from "react-router-dom";
+import { startECG, stopECG } from "@/api/ecg";
 
 const ECGRealtime = () => {
   const navigate = useNavigate();
@@ -119,6 +120,15 @@ const ECGRealtime = () => {
       }
     };
   }, [isAnalyzing]);
+
+  useEffect(() => {
+    return () => {
+      if (isAnalyzing) {
+        stopAnalysis();
+      }
+    };
+  }, []);
+
 
   
   const handleAnalysisSummary = (summaryData) => {
@@ -260,13 +270,15 @@ const calculateHeartRate = (data) => {
   };
 
   // Start analysis
-  const startAnalysis = () => {
+  const startAnalysis = async () => {
     if (!isConnected) {
       alert("Not connected to server. Please check your connection.");
       return;
     }
 
     console.log('🎬 Starting analysis...');
+
+    await startECG();
     
     // Clear previous data
     const clearBuffer = {};
@@ -338,8 +350,11 @@ const calculateHeartRate = (data) => {
 };
 
   // Stop analysis
-  const stopAnalysis = () => {
+  const stopAnalysis = async () => {
     console.log('⏹️ Stopping analysis');
+
+    await stopECG();
+
     setIsAnalyzing(false);
     setAnalysisComplete(true);
     

@@ -5,7 +5,7 @@ import cors from "cors";
 import http from "http";
 import connectDB from "./config/db.js";
 import { initSockets } from "./sockets/socket.js";
-import { startECGSimulation } from "./controllers/ecgController.js";
+import { startECGSimulation, stopECGSimulation } from "./controllers/ecgController.js";
 import ECG from "./models/ECG.js";
 import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoutes.js";
@@ -37,14 +37,30 @@ connectDB();
 initSockets(server);
 
 // Start ECG simulation
-startECGSimulation();
+// startECGSimulation();
+
+// app.post("/api/start-ecg", (req, res) => {
+//   startECGSimulation();
+//   res.json({ success: true, message: "ECG simulation started" });
+// });
+
+app.post("/api/ecg/start", (req, res) => {
+  startECGSimulation();
+  res.json({ success: true, message: "ECG simulation started" });
+});
+
+// When user leaves Analyze page
+app.post("/api/ecg/stop", (req, res) => {
+  stopECGSimulation();
+  res.json({ success: true, message: "ECG simulation stopped" });
+});
 
 // In your main server file
 app.post("/api/ecg", async (req, res) => {
   try {
     console.log("📥 Received ECG save request:", req.body);
     
-    const { signal, patientId } = req.body;
+    const { signal, patientId, bpm } = req.body;
 
     if (!signal || !patientId) {
       return res.status(400).json({ 
@@ -56,6 +72,7 @@ app.post("/api/ecg", async (req, res) => {
     const newECG = new ECG({
       idECG: Date.now(),
       signal,
+      bpm: bpm || null,
       patient: patientId
     });
 
