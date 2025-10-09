@@ -1,13 +1,11 @@
 // pages/admin/CreateUser.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserCircle, Plus, Shield } from 'lucide-react';
+import { ArrowLeft, UserCircle, Plus, Shield, Loader } from 'lucide-react';
 
 interface NewUserFormData {
   avatar?: File | null;
   username: string;
-  firstName: string;
-  lastName: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -21,6 +19,18 @@ interface NewUserFormData {
   age?: number;
   contact?: string;
   dateNaissance?: string;
+  // Medecin specific
+  specialite?: string;
+  experience?: number;
+}
+
+interface ApiResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    user: any;
+    profile: any;
+  };
 }
 
 const CreateUser: React.FC = () => {
@@ -29,8 +39,6 @@ const CreateUser: React.FC = () => {
   const [formData, setFormData] = useState<NewUserFormData>({
     avatar: null,
     username: '',
-    firstName: '',
-    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -42,9 +50,13 @@ const CreateUser: React.FC = () => {
     sexe: '',
     age: undefined,
     contact: '',
-    dateNaissance: ''
+    dateNaissance: '',
+    specialite: '',
+    experience: undefined
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,10 +70,87 @@ const CreateUser: React.FC = () => {
     }
   };
 
-  const handleCreateUser = () => {
-    // API call to create user
-    console.log('Creating user:', formData);
-    navigate('/admin/users');
+  const handleCreateUser = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+
+      // Validate required fields based on role
+      if (formData.role === 'patient' && (!formData.CIN || !formData.nom || !formData.prenom || !formData.adresse)) {
+        setError('Please fill all required fields for patient');
+        return;
+      }
+
+      if (formData.role === 'medecin' && (!formData.CIN || !formData.nom || !formData.prenom || !formData.adresse)) {
+        setError('Please fill all required fields for medecin');
+        return;
+      }
+
+      // Create FormData for file upload
+      const submitData = new FormData();
+      
+      // Append basic user data
+      submitData.append('username', formData.username);
+      submitData.append('email', formData.email);
+      submitData.append('password', formData.password);
+      submitData.append('role', formData.role);
+
+      // Append avatar if exists
+      if (formData.avatar) {
+        submitData.append('avatar', formData.avatar);
+      }
+
+      // Append role-specific data
+      if (formData.role === 'patient') {
+        submitData.append('CIN', formData.CIN || '');
+        submitData.append('nom', formData.nom || '');
+        submitData.append('prenom', formData.prenom || '');
+        submitData.append('adresse', formData.adresse || '');
+        submitData.append('sexe', formData.sexe || '');
+        if (formData.age) submitData.append('age', formData.age.toString());
+        submitData.append('contact', formData.contact || '');
+        if (formData.dateNaissance) submitData.append('dateNaissance', formData.dateNaissance);
+      }
+
+      if (formData.role === 'medecin') {
+        submitData.append('CIN', formData.CIN || '');
+        submitData.append('nom', formData.nom || '');
+        submitData.append('prenom', formData.prenom || '');
+        submitData.append('adresse', formData.adresse || '');
+        submitData.append('specialite', formData.specialite || '');
+        if (formData.experience) submitData.append('experience', formData.experience.toString());
+      }
+
+      const response = await fetch('http://localhost:5001/api/users', {
+        method: 'POST',
+        credentials: "include",
+        headers: {
+          // Don't set Content-Type for FormData - browser will set it with boundary
+        },
+        body: submitData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create user');
+      }
+
+      const data: ApiResponse = await response.json();
+      
+      if (data.success) {
+        navigate('/admin/users', { 
+          state: { message: 'User created successfully!' } 
+        });
+      } else {
+        throw new Error(data.message || 'Failed to create user');
+      }
+    } catch (err) {
+      console.error('Error creating user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create user');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const nextStep = () => {
@@ -70,6 +159,26 @@ const CreateUser: React.FC = () => {
 
   const prevStep = () => {
     if (createStep > 1) setCreateStep(createStep - 1);
+  };
+
+  // Validation helpers
+  const isStep1Valid = () => {
+    return formData.username && 
+           formData.email && 
+           formData.password && 
+           formData.confirmPassword && 
+           formData.password === formData.confirmPassword &&
+           formData.password.length >= 6;
+  };
+
+  const isStep3Valid = () => {
+    if (formData.role === 'patient') {
+      return formData.CIN && formData.nom && formData.prenom && formData.adresse;
+    }
+    if (formData.role === 'medecin') {
+      return formData.CIN && formData.nom && formData.prenom && formData.adresse;
+    }
+    return true; // Admin doesn't need additional info
   };
 
   return (
@@ -87,6 +196,19 @@ const CreateUser: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Create New User</h1>
           <p className="text-gray-600">Add a new user to the system</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+            <button 
+              onClick={() => setError(null)}
+              className="float-right text-red-500 hover:text-red-700"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow-sm">
           {/* Progress Steps */}
@@ -129,10 +251,15 @@ const CreateUser: React.FC = () => {
                     )}
                     <label className="absolute bottom-0 right-0 bg-lime-500 hover:bg-lime-600 text-white rounded-full p-2 cursor-pointer">
                       <Plus className="w-4 h-4" />
-                      <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleAvatarChange} 
+                        className="hidden" 
+                      />
                     </label>
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">Upload avatar</p>
+                  <p className="text-sm text-gray-600 mt-2">Upload avatar (optional)</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
@@ -144,6 +271,7 @@ const CreateUser: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                       placeholder="username"
+                      required
                     />
                   </div>
                   <div>
@@ -154,29 +282,7 @@ const CreateUser: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                       placeholder="email@example.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                    <input
-                      type="text"
-                      value={formData.firstName}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
-                      placeholder="First name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                    <input
-                      type="text"
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
-                      placeholder="Last name"
+                      required
                     />
                   </div>
                 </div>
@@ -190,7 +296,12 @@ const CreateUser: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                       placeholder="••••••••"
+                      minLength={6}
+                      required
                     />
+                    {formData.password && formData.password.length < 6 && (
+                      <p className="text-red-500 text-xs mt-1">Password must be at least 6 characters</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
@@ -200,7 +311,11 @@ const CreateUser: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                       placeholder="••••••••"
+                      required
                     />
+                    {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                      <p className="text-red-500 text-xs mt-1">Passwords do not match</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -214,6 +329,7 @@ const CreateUser: React.FC = () => {
                   {['patient', 'medecin', 'admin'].map((role) => (
                     <button
                       key={role}
+                      type="button"
                       onClick={() => setFormData({ ...formData, role: role as any })}
                       className={`p-8 border-2 rounded-xl text-center transition-all ${
                         formData.role === role
@@ -252,6 +368,7 @@ const CreateUser: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, CIN: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                           placeholder="CIN number"
+                          required
                         />
                       </div>
                       <div>
@@ -262,6 +379,31 @@ const CreateUser: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                           placeholder="Phone number"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Nom *</label>
+                        <input
+                          type="text"
+                          value={formData.nom}
+                          onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
+                          placeholder="Last name"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Prenom *</label>
+                        <input
+                          type="text"
+                          value={formData.prenom}
+                          onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
+                          placeholder="First name"
+                          required
                         />
                       </div>
                     </div>
@@ -281,7 +423,7 @@ const CreateUser: React.FC = () => {
                         <input
                           type="number"
                           value={formData.age || ''}
-                          onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) })}
+                          onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || undefined })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                           placeholder="Age"
                         />
@@ -302,13 +444,14 @@ const CreateUser: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
                       <textarea
                         value={formData.adresse}
                         onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                         rows={3}
                         placeholder="Full address"
+                        required
                       />
                     </div>
                   </>
@@ -325,6 +468,7 @@ const CreateUser: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, CIN: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                           placeholder="CIN number"
+                          required
                         />
                       </div>
                       <div>
@@ -335,6 +479,7 @@ const CreateUser: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                           placeholder="Last name"
+                          required
                         />
                       </div>
                     </div>
@@ -348,6 +493,30 @@ const CreateUser: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                           placeholder="First name"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Specialite</label>
+                        <input
+                          type="text"
+                          value={formData.specialite}
+                          onChange={(e) => setFormData({ ...formData, specialite: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
+                          placeholder="Medical specialty"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Experience (years)</label>
+                        <input
+                          type="number"
+                          value={formData.experience || ''}
+                          onChange={(e) => setFormData({ ...formData, experience: parseInt(e.target.value) || undefined })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
+                          placeholder="Years of experience"
                         />
                       </div>
                     </div>
@@ -360,6 +529,7 @@ const CreateUser: React.FC = () => {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                         rows={3}
                         placeholder="Full address"
+                        required
                       />
                     </div>
                   </>
@@ -381,6 +551,7 @@ const CreateUser: React.FC = () => {
             <div className="flex justify-between pt-8 border-t border-gray-200 mt-8">
               {createStep > 1 ? (
                 <button
+                  type="button"
                   onClick={prevStep}
                   className="px-8 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
@@ -388,6 +559,7 @@ const CreateUser: React.FC = () => {
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={() => navigate('/admin/users')}
                   className="px-8 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
@@ -397,22 +569,29 @@ const CreateUser: React.FC = () => {
               
               {createStep < 3 ? (
                 <button
+                  type="button"
                   onClick={nextStep}
-                  disabled={!formData.username || !formData.email || !formData.password || !formData.confirmPassword || formData.password !== formData.confirmPassword}
-                  className="px-8 py-3 bg-lime-500 hover:bg-lime-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  disabled={!isStep1Valid()}
+                  className="px-8 py-3 bg-lime-500 hover:bg-lime-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
                 >
                   Continue
+                  {isLoading && <Loader className="w-4 h-4 animate-spin" />}
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleCreateUser}
-                  disabled={
-                    (formData.role === 'patient' && (!formData.CIN || !formData.nom || !formData.prenom || !formData.adresse)) ||
-                    (formData.role === 'medecin' && (!formData.CIN || !formData.nom || !formData.prenom || !formData.adresse))
-                  }
-                  className="px-8 py-3 bg-lime-500 hover:bg-lime-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  disabled={!isStep3Valid() || isLoading}
+                  className="px-8 py-3 bg-lime-500 hover:bg-lime-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
                 >
-                  Create User
+                  {isLoading ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Creating User...
+                    </>
+                  ) : (
+                    'Create User'
+                  )}
                 </button>
               )}
             </div>

@@ -1,7 +1,7 @@
 // pages/admin/UserDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserCircle, Mail, Shield, Edit, Calendar, MapPin, Phone, IdCard } from 'lucide-react';
+import { ArrowLeft, UserCircle, Mail, Shield, Edit, Calendar, MapPin, Phone, IdCard, Loader } from 'lucide-react';
 
 interface User {
   _id: string;
@@ -13,52 +13,78 @@ interface User {
   status: 'pending' | 'approved' | 'rejected';
   avatar?: string;
   createdAt: string;
-  // Additional fields that might come from API
-  profile?: {
-    nom?: string;
-    prenom?: string;
-    CIN?: string;
-    adresse?: string;
-    sexe?: string;
-    age?: number;
-    contact?: string;
-    dateNaissance?: string;
-  };
+  lastLogin?: string;
 }
 
-const mockUser: User = {
-  _id: '1',
-  username: 'john_doe',
-  email: 'john@example.com',
-  role: 'patient',
-  isVerified: true,
-  isApproved: true,
-  status: 'approved',
-  createdAt: '2024-01-15T10:30:00Z',
-  profile: {
-    nom: 'Doe',
-    prenom: 'John',
-    CIN: 'AB123456',
-    adresse: '123 Main Street, City, Country',
-    sexe: 'M',
-    age: 30,
-    contact: '+1234567890',
-    dateNaissance: '1994-05-15'
-  }
-};
+interface Profile {
+  nom?: string;
+  prenom?: string;
+  CIN?: string;
+  adresse?: string;
+  sexe?: string;
+  age?: number;
+  contact?: string;
+  dateNaissance?: string;
+  specialite?: string;
+  experience?: number;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: {
+    user: User;
+    profile: Profile | null;
+  };
+}
 
 const UserDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchUserDetails = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`http://localhost:5001/api/users/${id}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('User not found');
+        }
+        throw new Error('Failed to fetch user details');
+      }
+
+      const data: ApiResponse = await response.json();
+      
+      if (data.success) {
+        setUser(data.data.user);
+        setProfile(data.data.profile);
+      } else {
+        throw new Error('Failed to load user details');
+      }
+    } catch (err) {
+      console.error('Error fetching user details:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load user details');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setUser(mockUser);
-      setIsLoading(false);
-    }, 500);
+    if (id) {
+      fetchUserDetails();
+    }
   }, [id]);
 
   const getRoleBadgeColor = (role: string) => {
@@ -87,10 +113,67 @@ const UserDetails: React.FC = () => {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInDays > 0) {
+      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    } else if (diffInHours > 0) {
+      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    } else {
+      return 'Just now';
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600"></div>
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin text-lime-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading user details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading User</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => navigate('/admin/users')}
+              className="px-6 py-2 bg-lime-500 hover:bg-lime-600 text-white rounded-lg font-medium"
+            >
+              Back to Users
+            </button>
+            <button
+              onClick={fetchUserDetails}
+              className="px-6 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg font-medium"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -99,6 +182,9 @@ const UserDetails: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
         <div className="text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="w-8 h-8 text-gray-600" />
+          </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">User Not Found</h2>
           <p className="text-gray-600 mb-4">The user you're looking for doesn't exist.</p>
           <button
@@ -114,7 +200,7 @@ const UserDetails: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className=" mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -146,9 +232,17 @@ const UserDetails: React.FC = () => {
               {/* Avatar */}
               <div className="flex justify-center mb-4">
                 {user.avatar ? (
-                  <img src={user.avatar} alt={user.username} className="w-32 h-32 rounded-full object-cover" />
+                  <img 
+                    src={user.avatar} 
+                    alt={user.username} 
+                    className="w-32 h-32 rounded-full object-cover border-4 border-lime-100"
+                    onError={(e) => {
+                      // Fallback if image fails to load
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                 ) : (
-                  <div className="w-32 h-32 rounded-full bg-lime-100 flex items-center justify-center">
+                  <div className="w-32 h-32 rounded-full bg-lime-100 flex items-center justify-center border-4 border-lime-200">
                     <UserCircle className="w-20 h-20 text-lime-600" />
                   </div>
                 )}
@@ -171,7 +265,7 @@ const UserDetails: React.FC = () => {
                     {user.role.toUpperCase()}
                   </span>
                 </div>
-                <div className="flex justify-center gap-2">
+                <div className="flex justify-center gap-2 flex-wrap">
                   <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusBadgeColor(user.status)}`}>
                     {user.status}
                   </span>
@@ -196,17 +290,19 @@ const UserDetails: React.FC = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">User ID:</span>
-                  <span className="font-mono text-gray-900">{user._id}</span>
+                  <span className="font-mono text-gray-900 text-xs">{user._id}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Created:</span>
                   <span className="text-gray-900">
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {formatDate(user.createdAt)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Last Login:</span>
-                  <span className="text-gray-900">2 hours ago</span>
+                  <span className="text-gray-900">
+                    {user.lastLogin ? getTimeAgo(user.lastLogin) : 'Never'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -217,52 +313,71 @@ const UserDetails: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Profile Information</h3>
 
-              {user.profile && (
+              {profile ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Personal Information */}
                   <div className="space-y-4">
                     <h4 className="font-semibold text-gray-900">Personal Information</h4>
                     
-                    {user.profile.nom && user.profile.prenom && (
+                    {(profile.nom || profile.prenom) && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                        <p className="text-gray-900">{user.profile.prenom} {user.profile.nom}</p>
+                        <p className="text-gray-900">
+                          {profile.prenom} {profile.nom}
+                        </p>
                       </div>
                     )}
 
-                    {user.profile.CIN && (
+                    {profile.CIN && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
                           <IdCard className="w-4 h-4" />
                           CIN
                         </label>
-                        <p className="text-gray-900">{user.profile.CIN}</p>
+                        <p className="text-gray-900">{profile.CIN}</p>
                       </div>
                     )}
 
-                    {user.profile.dateNaissance && (
+                    {profile.dateNaissance && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
                           Date of Birth
                         </label>
                         <p className="text-gray-900">
-                          {new Date(user.profile.dateNaissance).toLocaleDateString()}
+                          {formatDate(profile.dateNaissance)}
                         </p>
                       </div>
                     )}
 
-                    {user.profile.age && (
+                    {profile.age && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
-                        <p className="text-gray-900">{user.profile.age} years</p>
+                        <p className="text-gray-900">{profile.age} years</p>
                       </div>
                     )}
 
-                    {user.profile.sexe && (
+                    {profile.sexe && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                        <p className="text-gray-900 capitalize">{user.profile.sexe === 'M' ? 'Male' : 'Female'}</p>
+                        <p className="text-gray-900 capitalize">
+                          {profile.sexe === 'M' ? 'Male' : profile.sexe === 'F' ? 'Female' : profile.sexe}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Medecin specific fields */}
+                    {user.role === 'medecin' && profile.specialite && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Specialty</label>
+                        <p className="text-gray-900">{profile.specialite}</p>
+                      </div>
+                    )}
+
+                    {user.role === 'medecin' && profile.experience && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                        <p className="text-gray-900">{profile.experience} years</p>
                       </div>
                     )}
                   </div>
@@ -271,23 +386,23 @@ const UserDetails: React.FC = () => {
                   <div className="space-y-4">
                     <h4 className="font-semibold text-gray-900">Contact Information</h4>
 
-                    {user.profile.contact && (
+                    {profile.contact && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
                           <Phone className="w-4 h-4" />
                           Contact Number
                         </label>
-                        <p className="text-gray-900">{user.profile.contact}</p>
+                        <p className="text-gray-900">{profile.contact}</p>
                       </div>
                     )}
 
-                    {user.profile.adresse && (
+                    {profile.adresse && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
                           <MapPin className="w-4 h-4" />
                           Address
                         </label>
-                        <p className="text-gray-900">{user.profile.adresse}</p>
+                        <p className="text-gray-900">{profile.adresse}</p>
                       </div>
                     )}
 
@@ -300,13 +415,16 @@ const UserDetails: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              )}
-
-              {!user.profile && (
+              ) : (
                 <div className="text-center py-8">
                   <UserCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h4 className="text-lg font-semibold text-gray-900 mb-2">No Profile Information</h4>
-                  <p className="text-gray-600">This user hasn't completed their profile yet.</p>
+                  <p className="text-gray-600">
+                    {user.role === 'admin' 
+                      ? 'Admin users do not have additional profile information.' 
+                      : 'This user hasn\'t completed their profile yet.'
+                    }
+                  </p>
                 </div>
               )}
             </div>
