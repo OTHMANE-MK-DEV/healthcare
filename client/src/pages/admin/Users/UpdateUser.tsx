@@ -20,39 +20,89 @@ interface UserFormData {
   age?: number;
   contact?: string;
   dateNaissance?: string;
+  // Medecin specific
+  specialite?: string;
+  experience?: number;
 }
 
-const mockUser: UserFormData = {
-  username: 'john_doe',
-  email: 'john@example.com',
-  role: 'patient',
-  isVerified: true,
-  isApproved: true,
-  status: 'approved',
-  nom: 'Doe',
-  prenom: 'John',
-  CIN: 'AB123456',
-  adresse: '123 Main Street, City, Country',
-  sexe: 'M',
-  age: 30,
-  contact: '+1234567890',
-  dateNaissance: '1994-05-15'
-};
+const API_BASE_URL = 'http://localhost:5001/api/users';
 
 const UpdateUser: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<UserFormData>(mockUser);
+  const [formData, setFormData] = useState<UserFormData>({
+    username: '',
+    email: '',
+    role: 'patient',
+    isVerified: false,
+    isApproved: false,
+    status: 'pending'
+  });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call to fetch user data
-    setTimeout(() => {
-      setFormData(mockUser);
-      setIsLoading(false);
-    }, 500);
+    fetchUserData();
   }, [id]);
+
+  const fetchUserData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_BASE_URL}/${id}`, {
+        credentials:"include",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const userData = result.data.user;
+        const profileData = result.data.profile || {};
+        
+        // Transform backend data to frontend form data
+        setFormData({
+          username: userData.username || '',
+          email: userData.email || '',
+          role: userData.role || 'patient',
+          isVerified: userData.isVerified || false,
+          isApproved: userData.isApproved || false,
+          status: userData.status || 'pending',
+          nom: profileData.nom || '',
+          prenom: profileData.prenom || '',
+          CIN: profileData.CIN || '',
+          adresse: profileData.adresse || '',
+          sexe: profileData.sexe || '',
+          age: profileData.age || undefined,
+          contact: profileData.contact || '',
+          dateNaissance: profileData.dateNaissance ? 
+            new Date(profileData.dateNaissance).toISOString().split('T')[0] : '',
+          specialite: profileData.specialite || '',
+          experience: profileData.experience || undefined
+        });
+
+        if (userData.avatar) {
+          setAvatarPreview(userData.avatar);
+        }
+      } else {
+        throw new Error(result.message || 'Failed to fetch user data');
+      }
+    } catch (err) {
+      console.error('Error fetching user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch user data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,11 +116,79 @@ const UpdateUser: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // API call to update user
-    console.log('Updating user:', formData);
-    navigate('/admin/users');
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+
+      // Create FormData to handle file upload
+      const submitData = new FormData();
+      
+      // Append user data
+      submitData.append('username', formData.username);
+      submitData.append('email', formData.email);
+      submitData.append('role', formData.role);
+      submitData.append('isVerified', formData.isVerified.toString());
+      submitData.append('isApproved', formData.isApproved.toString());
+      submitData.append('status', formData.status);
+      
+      // Append profile data
+      if (formData.nom) submitData.append('nom', formData.nom);
+      if (formData.prenom) submitData.append('prenom', formData.prenom);
+      if (formData.CIN) submitData.append('CIN', formData.CIN);
+      if (formData.adresse) submitData.append('adresse', formData.adresse);
+      if (formData.sexe) submitData.append('sexe', formData.sexe);
+      if (formData.age) submitData.append('age', formData.age.toString());
+      if (formData.contact) submitData.append('contact', formData.contact);
+      if (formData.dateNaissance) submitData.append('dateNaissance', formData.dateNaissance);
+      
+      // Append medecin specific data
+      if (formData.specialite) submitData.append('specialite', formData.specialite);
+      if (formData.experience) submitData.append('experience', formData.experience.toString());
+      
+      // Append avatar file if changed
+      if (formData.avatar) {
+        submitData.append('avatar', formData.avatar);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/${id}`, {
+        method: 'PUT',
+        credentials:"include",
+        headers: {
+          // Don't set Content-Type for FormData, let browser set it with boundary
+        },
+        body: submitData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to update user');
+      }
+
+      // Success - navigate back to users list
+      navigate('/admin/users');
+    } catch (err) {
+      console.error('Error updating user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update user');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({ ...prev, [name]: checked }));
+    } else if (type === 'number') {
+      setFormData(prev => ({ ...prev, [name]: value ? parseInt(value) : undefined }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   if (isLoading) {
@@ -97,6 +215,12 @@ const UpdateUser: React.FC = () => {
           <p className="text-gray-600">Update user information and permissions</p>
         </div>
 
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm">
           <div className="p-6">
             {/* Avatar Upload */}
@@ -110,7 +234,12 @@ const UpdateUser: React.FC = () => {
                   </div>
                 )}
                 <label className="absolute bottom-0 right-0 bg-lime-500 hover:bg-lime-600 text-white rounded-full p-2 cursor-pointer">
-                  <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleAvatarChange} 
+                    className="hidden" 
+                  />
                   <UserCircle className="w-4 h-4" />
                 </label>
               </div>
@@ -127,8 +256,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Username *</label>
                 <input
                   type="text"
+                  name="username"
                   value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                   required
                 />
@@ -138,8 +268,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
                 <input
                   type="email"
+                  name="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                   required
                 />
@@ -148,8 +279,9 @@ const UpdateUser: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                 <select
+                  name="role"
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 >
                   <option value="patient">Patient</option>
@@ -161,8 +293,9 @@ const UpdateUser: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
+                  name="status"
                   value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 >
                   <option value="pending">Pending</option>
@@ -180,8 +313,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                 <input
                   type="text"
+                  name="prenom"
                   value={formData.prenom || ''}
-                  onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 />
               </div>
@@ -190,8 +324,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
                 <input
                   type="text"
+                  name="nom"
                   value={formData.nom || ''}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 />
               </div>
@@ -200,8 +335,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">CIN</label>
                 <input
                   type="text"
+                  name="CIN"
                   value={formData.CIN || ''}
-                  onChange={(e) => setFormData({ ...formData, CIN: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 />
               </div>
@@ -210,8 +346,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Contact</label>
                 <input
                   type="text"
+                  name="contact"
                   value={formData.contact || ''}
-                  onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 />
               </div>
@@ -220,8 +357,9 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
                 <input
                   type="date"
+                  name="dateNaissance"
                   value={formData.dateNaissance || ''}
-                  onChange={(e) => setFormData({ ...formData, dateNaissance: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 />
               </div>
@@ -230,17 +368,45 @@ const UpdateUser: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
                 <input
                   type="number"
+                  name="age"
                   value={formData.age || ''}
-                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 />
               </div>
 
+              {/* Medecin Specific Fields */}
+              {formData.role === 'medecin' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Specialité</label>
+                    <input
+                      type="text"
+                      name="specialite"
+                      value={formData.specialite || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Experience (years)</label>
+                    <input
+                      type="number"
+                      name="experience"
+                      value={formData.experience || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                 <select
+                  name="sexe"
                   value={formData.sexe || ''}
-                  onChange={(e) => setFormData({ ...formData, sexe: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                 >
                   <option value="">Select gender</option>
@@ -252,8 +418,9 @@ const UpdateUser: React.FC = () => {
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
                 <textarea
+                  name="adresse"
                   value={formData.adresse || ''}
-                  onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent outline-none"
                   rows={3}
                 />
@@ -266,8 +433,9 @@ const UpdateUser: React.FC = () => {
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
+                      name="isVerified"
                       checked={formData.isVerified}
-                      onChange={(e) => setFormData({ ...formData, isVerified: e.target.checked })}
+                      onChange={handleInputChange}
                       className="w-4 h-4 text-lime-600 focus:ring-lime-500 rounded"
                     />
                     <span className="text-sm font-medium text-gray-700">Email Verified</span>
@@ -275,8 +443,9 @@ const UpdateUser: React.FC = () => {
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
+                      name="isApproved"
                       checked={formData.isApproved}
-                      onChange={(e) => setFormData({ ...formData, isApproved: e.target.checked })}
+                      onChange={handleInputChange}
                       className="w-4 h-4 text-lime-600 focus:ring-lime-500 rounded"
                     />
                     <span className="text-sm font-medium text-gray-700">Account Approved</span>
@@ -291,15 +460,17 @@ const UpdateUser: React.FC = () => {
                 type="button"
                 onClick={() => navigate('/admin/users')}
                 className="px-8 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                disabled={isSubmitting}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-lime-500 hover:bg-lime-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                disabled={isSubmitting}
+                className="px-8 py-3 bg-lime-500 hover:bg-lime-600 disabled:bg-lime-300 text-white rounded-lg font-medium flex items-center gap-2 transition-colors disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
-                Save Changes
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

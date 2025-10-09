@@ -8,6 +8,7 @@ import { initSockets } from "./sockets/socket.js";
 import { startECGSimulation } from "./controllers/ecgController.js";
 import ECG from "./models/ECG.js";
 import authRouter from "./routes/authRoutes.js";
+import userRouter from "./routes/userRoutes.js";
 // import bcrypt from 'bcryptjs'
 // import User from "./models/User.js"
 
@@ -18,16 +19,17 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
+app.use(express.json());
+
 app.use(cookieParser());
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true
 }));
-app.use(express.json());
 
 
 app.use('/api/auth', authRouter);
-
+app.use('/api/users', userRouter);
 
 connectDB();
 
