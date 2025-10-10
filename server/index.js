@@ -9,6 +9,9 @@ import { startECGSimulation, stopECGSimulation } from "./controllers/ecgControll
 import ECG from "./models/ECG.js";
 import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoutes.js";
+import DoctorRouter from "./routes/doctorRoutes.js";
+import AvailabilityRouter from "./routes/availabilityRoutes.js";
+import BookingRouter from "./routes/bookingRoutes.js";
 // import bcrypt from 'bcryptjs'
 // import User from "./models/User.js"
 
@@ -30,6 +33,9 @@ app.use(cors({
 
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
+router.use('/doctors', DoctorRouter);
+router.use('/availability', AvailabilityRouter);
+router.use('/bookings', BookingRouter);
 
 connectDB();
 

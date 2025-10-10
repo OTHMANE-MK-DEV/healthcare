@@ -14,7 +14,7 @@ const medecinSchema = new mongoose.Schema({
   experience: {
     type: Number,
     required: false
-  }
+  },
 }, { timestamps: true });
 
 export default mongoose.model("Medecin", medecinSchema);
