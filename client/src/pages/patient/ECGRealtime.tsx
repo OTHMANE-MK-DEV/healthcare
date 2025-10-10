@@ -21,12 +21,32 @@ const ECGRealtime = () => {
   const rawDataBufferRef = useRef([]);
   const lastPeakTimeRef = useRef(0);
 
-  const [patientInfo] = useState({
-    name: 'SUPTECH SANTE',
-    gender: 'M',
-    age: 55,
-    patientId: '507f1f77bcf86cd799439011'
+  const [patientInfo, setPatientInfo] = useState({
+    name: "",
+    gender: "",
+    age: "",
+    patientId: ""
   });
+
+  useEffect(() => {
+    // 🧠 Get stored profile and user from localStorage
+    const storedProfile = localStorage.getItem("profile");
+    const storedUser = localStorage.getItem("user");
+
+    if (storedProfile && storedUser) {
+      const profile = JSON.parse(storedProfile);
+      const user = JSON.parse(storedUser);
+
+      // 🧩 Update state with localStorage data
+      setPatientInfo({
+        name: `${profile.nom?.toUpperCase()} ${profile.prenom?.toUpperCase()}`,
+        gender: profile.sexe || "",
+        age: profile.age || "",
+        patientId: user.id || ""
+      });
+    }
+  }, []);
+
 
   const [settings] = useState({
     gains: 10,
