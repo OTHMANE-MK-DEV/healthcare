@@ -28,11 +28,12 @@ import VerifyEmail from "./pages/auth/VerifyEmail";
 import Unauthorized from "./pages/Unauthorized";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
-import UserManagementDashboard from "./pages/admin/Users";
+// import UserManagementDashboard from "./pages/admin/Users";
 import UserManagement from "./pages/admin/Users";
 import UserDetails from "./pages/admin/Users/UserDetails";
 import CreateUser from "./pages/admin/Users/CreateUser";
 import UpdateUser from "./pages/admin/Users/UpdateUser";
+import MyDoctors from "./pages/patient/MyDoctors";
 
 function App() {
   return (
@@ -88,6 +89,7 @@ function App() {
         <Route index element={<PatientOverview />} />
         <Route path="planning" element={<Planning />} />
         <Route path="histories" element={<History />} />
+        <Route path="my-doctors" element={<MyDoctors />} />
       </Route>
 
       {/* ECG Route - Accessible by both patients and doctors */}

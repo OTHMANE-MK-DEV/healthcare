@@ -15,4 +15,4 @@ const rdvSchema = new mongoose.Schema({
   medecin: { type: mongoose.Schema.Types.ObjectId, ref: "Medecin", required: true }
 }, { timestamps: true });
 
-module.exports = mongoose.model("Rdv", rdvSchema);
+export default mongoose.model("Rdv", rdvSchema);

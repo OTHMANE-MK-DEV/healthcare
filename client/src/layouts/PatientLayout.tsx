@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { LayoutDashboard, Activity, Calendar, BookCheck, History } from "lucide-react";
+import { LayoutDashboard, Activity, Calendar, BookCheck, History, UsersIcon } from "lucide-react";
 import DashboardNavbar from "@/components/DashboardNavbar";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -23,11 +23,17 @@ const patientMenu = [
     href: "/patient/planning",
     description: "Doctor Schedule"
   },
+  // {
+  //   icon: BookCheck,
+  //   label: "RDVs",
+  //   href: "/patient/appointments",
+  //   description: "Appointments"
+  // },
   {
-    icon: BookCheck,
-    label: "RDVs",
-    href: "/patient/appointments",
-    description: "Appointments"
+    icon: UsersIcon,
+    label: "My Doctors",
+    href: "/patient/my-doctors",
+    description: "Medical History"
   },
   {
     icon: History,

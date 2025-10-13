@@ -33,9 +33,9 @@ app.use(cors({
 
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
-router.use('/doctors', DoctorRouter);
-router.use('/availability', AvailabilityRouter);
-router.use('/bookings', BookingRouter);
+app.use('/doctors', DoctorRouter);
+app.use('/availability', AvailabilityRouter);
+app.use('/bookings', BookingRouter);
 
 connectDB();
 
