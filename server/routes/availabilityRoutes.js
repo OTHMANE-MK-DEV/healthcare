@@ -1,14 +1,19 @@
 import express from 'express';
-import {
-  getDoctorAvailability,
-  getAllDoctorsAvailability,
-  checkDateAvailability
-} from '../controllers/availabilityController.js';
+import { createBulkSlots, createSlots, deleteSlot, getDoctorSlots } from '../controllers/availabilityController.js';
+
 
 const AvailabilityRouter = express.Router();
 
-AvailabilityRouter.get('/doctor/:doctorId/date/:date', getDoctorAvailability);
-AvailabilityRouter.get('/date/:date', getAllDoctorsAvailability);
-AvailabilityRouter.get('/date/:date/check', checkDateAvailability);
+// Get slots for a doctor
+AvailabilityRouter.get('/doctor/:medecinId', getDoctorSlots);
+
+// Create multiple slots
+AvailabilityRouter.post('/bulk', createSlots);
+
+// Create bulk slots for a date
+AvailabilityRouter.post('/bulk-date', createBulkSlots);
+
+// Delete a slot
+AvailabilityRouter.delete('/:slotId', deleteSlot);
 
 export default AvailabilityRouter;

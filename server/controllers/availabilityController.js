@@ -1,188 +1,135 @@
-import AvailableSlot from "../models/AvailableSlot.js";
-import mongoose from "mongoose";
+// controllers/availableSlotController.js
+import AvailableSlot from '../models/AvailableSlot.js';
+import Rdv from '../models/Rdv.js';
 
-// @desc    Get available slots for a doctor on specific date
-// @route   GET /api/availability/doctor/:doctorId/date/:date
-// @access  Public
-export const getDoctorAvailability = async (req, res) => {
+// Get available slots for a doctor
+export const getDoctorSlots = async (req, res) => {
   try {
-    const { doctorId, date } = req.params;
-    
-    // Validate doctorId
-    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid doctor ID'
-      });
+    const { medecinId } = req.params;
+    const { date, startDate, endDate } = req.query;
+
+    let query = { medecin: medecinId };
+
+    // Filter by specific date
+    if (date) {
+      const targetDate = new Date(date);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      query.datetime = {
+        $gte: targetDate,
+        $lt: nextDay
+      };
     }
 
-    // Parse date and create range for the day
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
+    // Filter by date range
+    if (startDate && endDate) {
+      query.datetime = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
 
-    const availableSlots = await AvailableSlot.find({
-      medecin: doctorId,
-      datetime: {
-        $gte: startDate,
-        $lte: endDate
-      },
-      isBooked: false
-    }).sort({ datetime: 1 });
-
-    // Format slots as time strings
-    const timeSlots = availableSlots.map(slot => {
-      const slotTime = new Date(slot.datetime);
-      return slotTime.toTimeString().slice(0, 5); // Returns "HH:MM" format
-    });
-
-    res.json({
-      success: true,
-      date: date,
-      doctorId: doctorId,
-      availableSlots: timeSlots,
-      count: timeSlots.length
-    });
-  } catch (error) {
-    console.error('Error fetching doctor availability:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching availability'
-    });
-  }
-};
-
-// @desc    Get availability for all doctors on specific date
-// @route   GET /api/availability/date/:date
-// @access  Public
-export const getAllDoctorsAvailability = async (req, res) => {
-  try {
-    const { date } = req.params;
-
-    // Parse date and create range for the day
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
-
-    const availableSlots = await AvailableSlot.find({
-      datetime: {
-        $gte: startDate,
-        $lte: endDate
-      },
-      isBooked: false
-    })
-      .populate('medecin', 'nom prenom specialite experience')
+    const slots = await AvailableSlot.find(query)
+      .populate('medecin', 'nom prenom specialite')
       .sort({ datetime: 1 });
 
-    // Group by doctor
-    const availabilityByDoctor = availableSlots.reduce((acc, slot) => {
-      const doctorId = slot.medecin._id.toString();
-      const slotTime = new Date(slot.datetime).toTimeString().slice(0, 5);
-      
-      if (!acc[doctorId]) {
-        acc[doctorId] = {
-          doctor: {
-            _id: slot.medecin._id,
-            nom: slot.medecin.nom,
-            prenom: slot.medecin.prenom,
-            specialite: slot.medecin.specialite,
-            experience: slot.medecin.experience
-          },
-          availableSlots: []
-        };
-      }
-      
-      acc[doctorId].availableSlots.push(slotTime);
-      return acc;
-    }, {});
-
-    res.json({
-      success: true,
-      date: date,
-      availability: Object.values(availabilityByDoctor),
-      count: Object.keys(availabilityByDoctor).length
-    });
+    res.json(slots);
   } catch (error) {
-    console.error('Error fetching all doctors availability:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching availability'
-    });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Check date availability (for calendar view)
-// @route   GET /api/availability/date/:date/check
-// @access  Public
-export const checkDateAvailability = async (req, res) => {
+// Create multiple slots
+export const createSlots = async (req, res) => {
   try {
-    const { date } = req.params;
+    const { medecinId, slots } = req.body;
 
-    // Parse date and create range for the day
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
+    // Validate input
+    if (!medecinId || !slots || !Array.isArray(slots)) {
+      return res.status(400).json({ message: 'Invalid input data' });
+    }
+
+    // Prepare slots for bulk creation
+    const slotsToCreate = slots.map(slotData => ({
+      medecin: medecinId,
+      datetime: new Date(slotData.datetime),
+      slotDuration: slotData.duration || 30,
+      isBooked: false
+    }));
+
+    const createdSlots = await AvailableSlot.insertMany(slotsToCreate);
     
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
+    // Populate medecin info
+    const populatedSlots = await AvailableSlot.find({
+      _id: { $in: createdSlots.map(slot => slot._id) }
+    }).populate('medecin', 'nom prenom specialite');
 
-    // Count available slots per doctor for this date
-    const availability = await AvailableSlot.aggregate([
-      {
-        $match: {
-          datetime: {
-            $gte: startDate,
-            $lte: endDate
-          },
-          isBooked: false
-        }
-      },
-      {
-        $group: {
-          _id: "$medecin",
-          availableSlots: { $sum: 1 }
-        }
-      },
-      {
-        $lookup: {
-          from: "medecins",
-          localField: "_id",
-          foreignField: "_id",
-          as: "doctor"
-        }
-      },
-      {
-        $unwind: "$doctor"
-      },
-      {
-        $project: {
-          doctorId: "$_id",
-          nom: "$doctor.nom",
-          prenom: "$doctor.prenom",
-          specialite: "$doctor.specialite",
-          availableSlots: 1
-        }
-      }
-    ]);
-
-    const hasAvailability = availability.length > 0;
-    const availableDoctors = availability.length;
-
-    res.json({
-      success: true,
-      date: date,
-      hasAvailability,
-      availableDoctors,
-      doctors: availability
-    });
+    res.status(201).json(populatedSlots);
   } catch (error) {
-    console.error('Error checking date availability:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while checking availability'
-    });
+    res.status(500).json({ message: error.message });
   }
+};
+
+// Create slots in bulk for a date range
+export const createBulkSlots = async (req, res) => {
+  try {
+    const { medecinId, date, startTime, endTime, duration, recurring } = req.body;
+
+    const slots = generateTimeSlots(date, startTime, endTime, duration);
+    
+    const slotsToCreate = slots.map(datetime => ({
+      medecin: medecinId,
+      datetime,
+      slotDuration: duration,
+      isBooked: false
+    }));
+
+    const createdSlots = await AvailableSlot.insertMany(slotsToCreate);
+    const populatedSlots = await AvailableSlot.find({
+      _id: { $in: createdSlots.map(slot => slot._id) }
+    }).populate('medecin', 'nom prenom specialite');
+
+    res.status(201).json(populatedSlots);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete a slot
+export const deleteSlot = async (req, res) => {
+  try {
+    const { slotId } = req.params;
+
+    // Check if slot is booked
+    const slot = await AvailableSlot.findById(slotId);
+    if (!slot) {
+      return res.status(404).json({ message: 'Slot not found' });
+    }
+
+    if (slot.isBooked) {
+      return res.status(400).json({ message: 'Cannot delete a booked slot' });
+    }
+
+    await AvailableSlot.findByIdAndDelete(slotId);
+    res.json({ message: 'Slot deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Helper function to generate time slots
+const generateTimeSlots = (date, startTime, endTime, duration) => {
+  const slots = [];
+  const startDateTime = new Date(`${date}T${startTime}`);
+  const endDateTime = new Date(`${date}T${endTime}`);
+  
+  let currentTime = new Date(startDateTime);
+  
+  while (currentTime < endDateTime) {
+    slots.push(new Date(currentTime));
+    currentTime.setMinutes(currentTime.getMinutes() + duration);
+  }
+  
+  return slots;
 };

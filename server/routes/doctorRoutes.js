@@ -1,14 +1,24 @@
+// routes/doctors.js
 import express from 'express';
 import {
   getDoctors,
   getDoctorById,
-  getDoctorsBySpecialty
+  updateDoctor,
+  getDoctorStats
 } from '../controllers/doctorController.js';
 
 const DoctorRouter = express.Router();
 
+// Get all doctors
 DoctorRouter.get('/', getDoctors);
-DoctorRouter.get('/specialty/:specialty', getDoctorsBySpecialty);
-DoctorRouter.get('/:id', getDoctorById);
+
+// Get doctor by ID
+DoctorRouter.get('/:doctorId', getDoctorById);
+
+// Update doctor profile
+DoctorRouter.put('/:doctorId', updateDoctor);
+
+// Get doctor statistics
+DoctorRouter.get('/:doctorId/stats', getDoctorStats);
 
 export default DoctorRouter;

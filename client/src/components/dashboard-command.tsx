@@ -3,73 +3,73 @@
 import { useEffect, useState } from "react";
 import {
   CommandInput,
-  CommandItem,
+  // CommandItem,
   CommandList,
-  CommandGroup,
+  // CommandGroup,
   CommandResponsiveDialog,
   CommandEmpty,
 } from "@/components/ui/command";
-import { Dispatch, SetStateAction } from "react";
-import { useNavigate } from "react-router-dom";
+// import { Dispatch, SetStateAction } from "react";
+// import { useNavigate } from "react-router-dom";
 
 interface Props {
   open: boolean;
-  setOpen: Dispatch<SetStateAction<boolean>>;
+  // setOpen: Dispatch<SetStateAction<boolean>>;
 }
 
-interface Book {
-  id: string;
-  title: string;
-  genre: string;
-  slug: string;
-}
+// interface Book {
+//   id: string;
+//   title: string;
+//   genre: string;
+//   slug: string;
+// }
 
-interface Series {
-  id: string;
-  title: string;
-  category: string;
-  slug: string;
-}
+// interface Series {
+//   id: string;
+//   title: string;
+//   category: string;
+//   slug: string;
+// }
 
-interface Review {
-  id: string;
-  name: string;
-  comment: string;
-}
+// interface Review {
+//   id: string;
+//   name: string;
+//   comment: string;
+// }
 
-interface Message {
-  id: string;
-  name: string;
-  subject: string;
-}
+// interface Message {
+//   id: string;
+//   name: string;
+//   subject: string;
+// }
 
-interface SearchResults {
-  books: Book[];
-  series: Series[];
-  reviews: Review[];
-  messages: Message[];
-}
+// interface SearchResults {
+//   books: Book[];
+//   series: Series[];
+//   reviews: Review[];
+//   messages: Message[];
+// }
 
-const DashboardCommand = ({ open, setOpen }: Props) => {
-  const navigate = useNavigate();
+const DashboardCommand = ({ open,  }: Props) => {
+  // const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResults>({
-    books: [],
-    series: [],
-    reviews: [],
-    messages: [],
-  });
+  // const [results, setResults] = useState<SearchResults>({
+  //   books: [],
+  //   series: [],
+  //   reviews: [],
+  //   messages: [],
+  // });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setResults({ books: [], series: [], reviews: [], messages: [] });
+      // setResults({ books: [], series: [], reviews: [], messages: [] });
       setLoading(false);
       return;
     }
 
     if (query.trim().length < 2) {
-      setResults({ books: [], series: [], reviews: [], messages: [] });
+      // setResults({ books: [], series: [], reviews: [], messages: [] });
       setLoading(false);
       return;
     }
@@ -77,10 +77,9 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
     setLoading(true);
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        setResults(data);
-        console.log(data);
+        // const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        // const data = await res.json();
+        // setResults(data);
       } catch (err) {
         console.error("Search error", err);
       } finally {
@@ -92,21 +91,21 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
   }, [query, open]);
 
   // Fix: Properly calculate hasResults as a boolean
-  const hasResults = 
-    results.books.length > 0 ||
-    results.series.length > 0 ||
-    results.reviews.length > 0 ||
-    results.messages.length > 0;
+  // const hasResults = 
+  //   results.books.length > 0 ||
+  //   results.series.length > 0 ||
+  //   results.reviews.length > 0 ||
+  //   results.messages.length > 0;
 
-  console.log("Debug - Query:", query, "Query length:", query.trim().length);
-  console.log("Debug - Loading:", loading);
-  console.log("Debug - Results:", results);
+  // console.log("Debug - Query:", query, "Query length:", query.trim().length);
+  // console.log("Debug - Loading:", loading);
+  // console.log("Debug - Results:", results);
 
-  console.log(results);
+  // console.log(results);
 
 
   return (
-    <CommandResponsiveDialog open={open} onOpenChange={setOpen}>
+    <CommandResponsiveDialog open={open}>
       <CommandInput
         placeholder="Search books, series, reviews, messages..."
         value={query}
@@ -115,12 +114,12 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
       <CommandList>
         {loading && <CommandEmpty>Searching...</CommandEmpty>}
 
-        {!loading && !hasResults && query.trim().length >= 2 && (
+        {/* {!loading && !hasResults && query.trim().length >= 2 && (
           <CommandEmpty>No results found.</CommandEmpty>
         )}
 
         {/* Books */}
-        {!loading && results.books.length > 0 && (
+        {/* {!loading && results.books.length > 0 && (
           <CommandGroup heading="Books">
             {results.books.map((book) => (
               <CommandItem
@@ -135,10 +134,10 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
               </CommandItem>
             ))}
           </CommandGroup>
-        )}
+        )} */}
 
         {/* Series */}
-        {!loading && results.series.length > 0 && (
+        {/* {!loading && results.series.length > 0 && (
           <CommandGroup heading="Series">
             {results.series.map((serie) => (
               <CommandItem
@@ -153,10 +152,10 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
               </CommandItem>
             ))}
           </CommandGroup>
-        )}
+        )} */}
 
         {/* Reviews */}
-        {!loading && results.reviews.length > 0 && (
+        {/* {!loading && results.reviews.length > 0 && (
           <CommandGroup heading="Reviews">
             {results.reviews.map((review) => (
               <CommandItem
@@ -171,10 +170,10 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
               </CommandItem>
             ))}
           </CommandGroup>
-        )}
+        )} */}
 
         {/* Messages */}
-        {!loading && results.messages.length > 0 && (
+        {/* {!loading && results.messages.length > 0 && (
           <CommandGroup heading="Messages">
             {results.messages.map((msg) => (
               <CommandItem
@@ -189,7 +188,7 @@ const DashboardCommand = ({ open, setOpen }: Props) => {
               </CommandItem>
             ))}
           </CommandGroup>
-        )}
+        )}  */}
       </CommandList>
     </CommandResponsiveDialog>
   );

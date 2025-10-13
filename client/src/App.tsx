@@ -34,6 +34,7 @@ import UserDetails from "./pages/admin/Users/UserDetails";
 import CreateUser from "./pages/admin/Users/CreateUser";
 import UpdateUser from "./pages/admin/Users/UpdateUser";
 import MyDoctors from "./pages/patient/MyDoctors";
+import DoctorPlanning from "./pages/doctor/Planning";
 
 function App() {
   return (
@@ -115,7 +116,8 @@ function App() {
         <Route path="patients" element={<div className="flex min-h-screen flex-col items-center justify-center">
               <h1 className="text-2xl mb-4">patients</h1>
             </div>} />
-        {/* Add more doctor routes here */}
+        
+        <Route path="appointments" element={<DoctorPlanning />} />
       </Route>
 
       {/* Admin Routes - Protected */}
