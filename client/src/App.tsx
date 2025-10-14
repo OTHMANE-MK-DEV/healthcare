@@ -35,6 +35,7 @@ import CreateUser from "./pages/admin/Users/CreateUser";
 import UpdateUser from "./pages/admin/Users/UpdateUser";
 import MyDoctors from "./pages/patient/MyDoctors";
 import DoctorPlanning from "./pages/doctor/Planning";
+import PatientRDVsPage from "./pages/patient/RDVs";
 
 function App() {
   return (
@@ -91,6 +92,7 @@ function App() {
         <Route path="planning" element={<Planning />} />
         <Route path="histories" element={<History />} />
         <Route path="my-doctors" element={<MyDoctors />} />
+        <Route path="appointments" element={<PatientRDVsPage />} />
       </Route>
 
       {/* ECG Route - Accessible by both patients and doctors */}

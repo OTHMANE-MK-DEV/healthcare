@@ -6,13 +6,19 @@ import {
   createAppointment,
   updateAppointmentStatus,
   updateAppointment,
-  deleteAppointment
+  deleteAppointment,
+  getPatientAppointments,
+  cancelPatientAppointment,
+  getPatientFromUser
 } from '../controllers/appointmentController.js';
+import { verifyToken } from '../middleware/AuthMiddleware.js';
 
 const AppointmentRouter = express.Router();
 
+AppointmentRouter.patch('/:id/cancel', verifyToken, cancelPatientAppointment);
 // Get appointments for a doctor
 AppointmentRouter.get('/doctor/:medecinId', getDoctorAppointments);
+
 
 // Get specific appointment
 AppointmentRouter.get('/:appointmentId', getAppointmentById);
@@ -29,4 +35,9 @@ AppointmentRouter.put('/:appointmentId', updateAppointment);
 // Delete appointment
 AppointmentRouter.delete('/:appointmentId', deleteAppointment);
 
+
+
+AppointmentRouter.get('/', verifyToken, getPatientAppointments);
+
 export default AppointmentRouter;
+

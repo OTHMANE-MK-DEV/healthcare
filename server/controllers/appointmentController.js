@@ -229,3 +229,177 @@ export const deleteAppointment = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getPatientFromUser = async (req, res, next) => {
+  try {
+    // Assuming req.user contains the authenticated user
+    const patient = await Patient.findOne({ user: req.user._id });
+    
+    if (!patient) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Patient profile not found' 
+      });
+    }
+    
+    req.patient = patient;
+    next();
+  } catch (error) {
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error finding patient profile',
+      error: error.message 
+    });
+  }
+};
+
+/**
+ * @route   GET /api/patient/appointments
+ * @desc    Get all appointments for the authenticated patient
+ * @access  Private (Patient only)
+ */
+export const getPatientAppointments = async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ user: req.user.userId });
+
+    // Find all appointments for this patient and populate doctor details
+    const appointments = await Rdv.find({ patient: patient._id })
+      .populate({
+        path: 'medecin',
+        select: 'nom prenom specialite experience CIN adresse'
+      })
+      .sort({ datetime: -1 }); // Sort by date, newest first
+
+
+    // Transform the data to match the frontend expectations
+    const formattedAppointments = appointments.map(apt => ({
+      _id: apt._id,
+      idRdv: apt.idRdv,
+      datetime: apt.datetime,
+      status: apt.status,
+      motif: apt.motif || 'No reason provided',
+      notified: apt.notified,
+      medecin: {
+        _id: apt.medecin._id,
+        nom: apt.medecin.nom,
+        prenom: apt.medecin.prenom,
+        specialite: apt.medecin.specialite,
+        experience: apt.medecin.experience
+      },
+      createdAt: apt.createdAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedAppointments.length,
+      data: formattedAppointments
+    });
+
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching appointments',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @route   PATCH /api/patient/appointments/:id/cancel
+ * @desc    Cancel an appointment
+ * @access  Private (Patient only)
+ */
+export const cancelPatientAppointment = async (req, res) => {
+  try {
+    const appointmentId = req.params.id;
+
+    const patient = await Patient.findOne({ user: req.user.userId});
+    
+    if (!patient) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Patient profile not found' 
+      });
+    }
+
+    // Find the appointment
+    const appointment = await Rdv.findById(appointmentId)
+      .populate('medecin', 'nom prenom specialite');
+
+    // Check if appointment exists
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    // Verify that this appointment belongs to the authenticated patient
+    if (appointment.patient.toString() !== patient._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to cancel this appointment'
+      });
+    }
+
+    // Check if appointment is already canceled
+    if (appointment.status === 'canceled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Appointment is already canceled'
+      });
+    }
+
+    // Check if appointment is already completed
+    if (appointment.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel a completed appointment'
+      });
+    }
+
+    // Check if appointment is in the past
+    const now = new Date();
+    if (new Date(appointment.datetime) < now) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel past appointments'
+      });
+    }
+
+    // Update appointment status to canceled
+    appointment.status = 'canceled';
+    await appointment.save();
+
+    // Optional: Send notification to doctor about cancellation
+    // You can implement email/notification logic here
+    // await sendCancellationNotification(appointment);
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment canceled successfully',
+      data: {
+        _id: appointment._id,
+        idRdv: appointment.idRdv,
+        datetime: appointment.datetime,
+        status: appointment.status,
+        motif: appointment.motif,
+        medecin: {
+          _id: appointment.medecin._id,
+          nom: appointment.medecin.nom,
+          prenom: appointment.medecin.prenom,
+          specialite: appointment.medecin.specialite
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error canceling appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error canceling appointment',
+      error: error.message
+    });
+  }
+};

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Calendar, Clock, CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import {
   AlertDialog,
@@ -12,45 +12,22 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-// Mock data for doctors - in real app, this would come from your API
-const mockDoctors = [
-  { _id: '1', nom: 'Smith', prenom: 'John', specialite: 'Cardiology', experience: 10 },
-  { _id: '2', nom: 'Johnson', prenom: 'Emily', specialite: 'Dermatology', experience: 8 },
-  { _id: '3', nom: 'Brown', prenom: 'Michael', specialite: 'Pediatrics', experience: 12 },
-  { _id: '4', nom: 'Davis', prenom: 'Sarah', specialite: 'Neurology', experience: 15 },
-];
+// Types for our data
+interface Doctor {
+  _id: string;
+  nom: string;
+  prenom: string;
+  specialite: string;
+  experience: number;
+}
 
-// Function to generate availability dynamically for any date and doctor
-const getAvailabilityForDateAndDoctor = (date: Date, doctorId: string) => {
-  const dayOfWeek = date.getDay();
-  
-  // Skip Sundays (doctor's day off)
-  if (dayOfWeek === 0) return [];
-  
-  // Use date and doctorId as seed for consistent "random" availability
-  const dateNum = date.getDate() + date.getMonth() * 31 + date.getFullYear() * 365;
-  const doctorNum = parseInt(doctorId) || 1;
-  const seed = (dateNum + doctorNum * 100) % 100;
-  
-  // Generate availability based on seed
-  if (seed < 15) {
-    // 15% chance of no availability (fully booked)
-    return [];
-  } else if (seed < 35) {
-    // 20% chance of limited slots
-    return ['09:00', '10:00', '14:00'];
-  } else if (seed < 60) {
-    // 25% chance of medium availability
-    return ['09:00', '10:00', '11:00', '14:00', '15:00'];
-  } else {
-    // 40% chance of full availability
-    return ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
-  }
-};
-
-const allTimeSlots = [
-  '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'
-];
+interface AvailableSlot {
+  _id: string;
+  datetime: string;
+  slotDuration: number;
+  isBooked: boolean;
+  medecin: string | Doctor;
+}
 
 interface BookingState {
   selectedDate: string | null;
@@ -60,8 +37,73 @@ interface BookingState {
   step: 'calendar' | 'doctor' | 'time' | 'motif' | 'confirmation';
 }
 
+// API service functions
+const apiService = {
+  // Get all doctors
+  async getDoctors(): Promise<Doctor[]> {
+    const response = await fetch('http://localhost:5001/api/doctors');
+    if (!response.ok) throw new Error('Failed to fetch doctors');
+    return response.json();
+  },
+
+  // Get available slots for a doctor on a specific date
+  async getDoctorSlots(doctorId: string, date: string): Promise<AvailableSlot[]> {
+    const response = await fetch(`http://localhost:5001/api/available-slots/doctor/${doctorId}?date=${date}`);
+    if (!response.ok) throw new Error('Failed to fetch available slots');
+    return response.json();
+  },
+
+  // Create a booking
+  async createBooking(bookingData: {
+    doctorId: string;
+    datetime: string;
+    motif: string;
+    patientId: string; // You'll need to get this from your auth context
+    slotId: string;
+  }) {
+    const response = await fetch('http://localhost:5001/api/bookings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bookingData),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create booking');
+    }
+    
+    return response.json();
+  }
+};
+
+
+const getPatientIdFromStorage = (): string | null => {
+  try {
+    const userData = localStorage.getItem('profile');
+    if (userData) {
+      const user = JSON.parse(userData);
+      return user.id || user._id || null;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting user from localStorage:', error);
+    return null;
+  }
+};
+
 export default function Planning() {
-  const [currentMonth, setCurrentMonth] = useState(new Date(2025, 9, 1)); // October 2025
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [availabilityCache, setAvailabilityCache] = useState<Record<string, AvailableSlot[]>>({});
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSpecialty, setSelectedSpecialty] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'experience' | 'slots'>('name');
+  
   const [booking, setBooking] = useState<BookingState>({
     selectedDate: null,
     selectedDoctor: null,
@@ -69,10 +111,71 @@ export default function Planning() {
     motif: '',
     step: 'calendar',
   });
+  
   const [showDialog, setShowDialog] = useState(false);
   const [bookingStatus, setBookingStatus] = useState<'pending' | 'success' | 'error'>('pending');
 
-  const today = new Date(2025, 9, 2); // October 2, 2025
+  const today = new Date();
+
+  // Fetch doctors on component mount
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        setLoading(true);
+        const doctorsData = await apiService.getDoctors();
+        setDoctors(doctorsData);
+        console.log(doctorsData)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load doctors');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
+
+  
+
+  // Fetch availability for a specific doctor and date
+  const fetchAvailability = async (doctorId: string, date: string) => {
+    const cacheKey = `${doctorId}-${date}`;
+    
+    // Return cached data if available
+    if (availabilityCache[cacheKey]) {
+      return availabilityCache[cacheKey];
+    }
+
+    try {
+      const slots = await apiService.getDoctorSlots(doctorId, date);
+      
+      // Update cache
+      setAvailabilityCache(prev => ({
+        ...prev,
+        [cacheKey]: slots
+      }));
+      
+      return slots;
+    } catch (err) {
+      console.error('Error fetching availability:', err);
+      return [];
+    }
+  };
+
+  // Get availability for all doctors on a specific date
+  const getAvailabilityForDate = async (date: Date): Promise<Record<string, AvailableSlot[]>> => {
+    const dateStr = formatDate(date);
+    const availability: Record<string, AvailableSlot[]> = {};
+
+    // Fetch availability for each doctor in parallel
+    const promises = doctors.map(async (doctor) => {
+      const slots = await fetchAvailability(doctor._id, dateStr);
+      availability[doctor._id] = slots;
+    });
+
+    await Promise.all(promises);
+    return availability;
+  };
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -99,11 +202,41 @@ export default function Planning() {
     return date.toISOString().split('T')[0];
   };
 
+  const formatTime = (datetime: string) => {
+    return new Date(datetime).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).slice(0, 5); // Get HH:MM format
+  };
+
   const isDatePast = (date: Date) => {
     return date < today;
   };
 
   const days = useMemo(() => getDaysInMonth(currentMonth), [currentMonth]);
+
+  const [dateAvailability, setDateAvailability] = useState<Record<string, Record<string, AvailableSlot[]>>>({});
+
+  // Pre-fetch availability for visible month
+  useEffect(() => {
+    const prefetchAvailability = async () => {
+      const monthAvailability: Record<string, Record<string, AvailableSlot[]>> = {};
+      
+      for (const day of days) {
+        if (day && !isDatePast(day)) {
+          const dateStr = formatDate(day);
+          monthAvailability[dateStr] = await getAvailabilityForDate(day);
+        }
+      }
+      
+      setDateAvailability(monthAvailability);
+    };
+
+    if (doctors.length > 0) {
+      prefetchAvailability();
+    }
+  }, [days, doctors]);
 
   const handlePrevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -113,19 +246,30 @@ export default function Planning() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  const handleDateClick = (date: Date) => {
+  const handleDateClick = async (date: Date) => {
     if (isDatePast(date)) return;
     
+    const dateStr = formatDate(date);
+    const availability = dateAvailability[dateStr] || await getAvailabilityForDate(date);
+    
     // Check if any doctor has availability for this date
-    const hasAnyAvailability = mockDoctors.some(doctor => 
-      getAvailabilityForDateAndDoctor(date, doctor._id).length > 0
+    const hasAnyAvailability = Object.values(availability).some(slots => 
+      slots.filter(slot => !slot.isBooked).length > 0
     );
     
     if (!hasAnyAvailability) return;
 
+    // Update dateAvailability with fetched data
+    if (!dateAvailability[dateStr]) {
+      setDateAvailability(prev => ({
+        ...prev,
+        [dateStr]: availability
+      }));
+    }
+
     setBooking({
       ...booking,
-      selectedDate: formatDate(date),
+      selectedDate: dateStr,
       selectedDoctor: null,
       selectedTime: null,
       step: 'doctor',
@@ -133,13 +277,18 @@ export default function Planning() {
     setShowDialog(true);
   };
 
-  const handleDoctorSelect = (doctorId: string) => {
+  const handleDoctorSelect = async (doctorId: string) => {
     if (!booking.selectedDate) return;
     
-    const selectedDate = new Date(booking.selectedDate + 'T00:00:00');
-    const availability = getAvailabilityForDateAndDoctor(selectedDate, doctorId);
+    // Ensure we have the latest availability data
+    let availability = dateAvailability[booking.selectedDate]?.[doctorId];
+    if (!availability) {
+      availability = await fetchAvailability(doctorId, booking.selectedDate);
+    }
+
+    const availableSlots = availability.filter(slot => !slot.isBooked);
     
-    if (availability.length === 0) return;
+    if (availableSlots.length === 0) return;
 
     setBooking({
       ...booking,
@@ -150,22 +299,41 @@ export default function Planning() {
   };
 
   const handleTimeSelect = (time: string) => {
-    setBooking({
-      ...booking,
-      selectedTime: time,
-      step: 'motif',
-    });
-  };
+  setBooking({
+    ...booking,
+    selectedTime: time,
+    step: 'motif',
+  });
+};
 
-  const handleMotifSubmit = () => {
-    if (!booking.motif.trim()) return;
+  const handleMotifSubmit = async () => {
+    if (!booking.motif.trim() || !booking.selectedDoctor || !booking.selectedDate || !booking.selectedTime) return;
     
+    const patientId = getPatientIdFromStorage();
+    if (!patientId) {
+      setBookingStatus('error');
+      setError('Please log in to book an appointment');
+      return;
+    }
+
     setBooking({ ...booking, step: 'confirmation' });
     
-    // Simulate API call
-    setTimeout(() => {
-      setBookingStatus(Math.random() > 0.2 ? 'success' : 'error');
-    }, 1500);
+    try {
+      // Create datetime string from selected date and time
+      const datetime = `${booking.selectedDate}T${booking.selectedTime}:00`;
+      
+      await apiService.createBooking({
+        doctorId: booking.selectedDoctor,
+        datetime,
+        motif: booking.motif,
+        patientId: patientId
+      });
+      
+      setBookingStatus('success');
+    } catch (err) {
+      console.error('Booking error:', err);
+      setBookingStatus('error');
+    }
   };
 
   const handleClose = () => {
@@ -179,20 +347,125 @@ export default function Planning() {
         step: 'calendar',
       });
       setBookingStatus('pending');
+      
+      // Clear cache for the booked date to reflect changes
+      if (booking.selectedDate) {
+        setAvailabilityCache(prev => {
+          const newCache = { ...prev };
+          Object.keys(newCache).forEach(key => {
+            if (key.includes(booking.selectedDate!)) {
+              delete newCache[key];
+            }
+          });
+          return newCache;
+        });
+      }
     }
   };
 
   const getSelectedDoctor = () => {
-    return mockDoctors.find(doctor => doctor._id === booking.selectedDoctor);
+    return doctors.find(doctor => doctor._id === booking.selectedDoctor);
   };
 
-  const getAvailabilityForSelectedDoctor = () => {
-    if (!booking.selectedDate || !booking.selectedDoctor) return [];
-    const selectedDate = new Date(booking.selectedDate + 'T00:00:00');
-    return getAvailabilityForDateAndDoctor(selectedDate, booking.selectedDoctor);
+const getAvailabilityForSelectedDoctor = () => {
+  if (!booking.selectedDate || !booking.selectedDoctor) return [];
+  
+  const availability = dateAvailability[booking.selectedDate]?.[booking.selectedDoctor] || [];
+  
+  // Return slots with time and availability status
+  return availability.map(slot => ({
+    datetime: slot.datetime,
+    time: formatTime(slot.datetime),
+    isBooked: slot.isBooked
+  }));
+};
+
+  const getAvailableDoctorsForDate = (date: Date) => {
+    const dateStr = formatDate(date);
+    const availability = dateAvailability[dateStr];
+    
+    if (!availability) return [];
+    
+    return doctors.filter(doctor => {
+      const doctorSlots = availability[doctor._id] || [];
+      return doctorSlots.filter(slot => !slot.isBooked).length > 0;
+    });
   };
 
   const monthYear = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Add this computed value after your state declarations
+// Update the filteredDoctors computation to handle undefined values safely
+const filteredDoctors = useMemo(() => {
+  const filtered = doctors.filter(doctor => {
+    // Handle cases where doctor properties might be undefined or null
+    const doctorName = `${doctor.prenom || ''} ${doctor.nom || ''}`.toLowerCase();
+    const doctorSpecialty = (doctor.specialite || '').toLowerCase();
+    const searchTermLower = (searchTerm || '').toLowerCase();
+    
+    // Filter by search term
+    const matchesSearch = searchTerm === '' || 
+      doctorName.includes(searchTermLower) ||
+      doctorSpecialty.includes(searchTermLower);
+    
+    // Filter by specialty
+    const matchesSpecialty = selectedSpecialty === '' || doctor.specialite === selectedSpecialty;
+    
+    return matchesSearch && matchesSpecialty;
+  });
+
+  // Sort doctors
+  filtered.sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        const nameA = `${a.prenom || ''} ${a.nom || ''}`;
+        const nameB = `${b.prenom || ''} ${b.nom || ''}`;
+        return nameA.localeCompare(nameB);
+      case 'experience':
+        return (b.experience || 0) - (a.experience || 0);
+      case 'slots':
+        const aSlots = dateAvailability[booking.selectedDate || '']?.[a._id]?.filter(slot => !slot.isBooked).length || 0;
+        const bSlots = dateAvailability[booking.selectedDate || '']?.[b._id]?.filter(slot => !slot.isBooked).length || 0;
+        return bSlots - aSlots;
+      default:
+        return 0;
+    }
+  });
+
+  return filtered;
+}, [doctors, searchTerm, selectedSpecialty, sortBy, dateAvailability, booking.selectedDate]);
+
+  useEffect(() => {
+    if (!showDialog) {
+      setSearchTerm('');
+      setSelectedSpecialty('');
+      setSortBy('name');
+    }
+  }, [showDialog]);
+
+  if (loading) {
+    return (
+      <div className="min-h-full w-full p-2 md:p-8 overflow-x-hidden flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading doctors...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-full w-full p-2 md:p-8 overflow-x-hidden flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">Error Loading Data</h3>
+          <p className="text-slate-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full w-full p-2 md:p-8 overflow-x-hidden">
@@ -271,12 +544,8 @@ export default function Planning() {
               }
 
               const isPast = isDatePast(day);
-              const hasAnyAvailability = mockDoctors.some(doctor => 
-                getAvailabilityForDateAndDoctor(day, doctor._id).length > 0
-              );
-              const availableDoctors = mockDoctors.filter(doctor => 
-                getAvailabilityForDateAndDoctor(day, doctor._id).length > 0
-              );
+              const availableDoctors = getAvailableDoctorsForDate(day);
+              const hasAnyAvailability = availableDoctors.length > 0;
               const isLimited = hasAnyAvailability && availableDoctors.length <= 2;
               const isSelected = booking.selectedDate === formatDate(day);
 
@@ -337,13 +606,55 @@ export default function Planning() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
 
-                <div className="space-y-3 py-4">
-                  {mockDoctors.map((doctor) => {
+                {/* Search and Filter Section */}
+                <div className="space-y-3">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search doctors by name..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full p-3 pl-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                    />
+                    <User className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                  </div>
+
+                  {/* Filters Row */}
+                  <div className="flex gap-2">
+                    {/* Specialty Filter */}
+                    <select
+                      value={selectedSpecialty}
+                      onChange={(e) => setSelectedSpecialty(e.target.value)}
+                      className="flex-1 p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All Specialties</option>
+                      {Array.from(new Set(doctors.map(d => d.specialite))).map(specialty => (
+                        <option key={specialty} value={specialty}>{specialty}</option>
+                      ))}
+                    </select>
+
+                    {/* Sort Filter */}
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as 'name' | 'experience' | 'slots')}
+                      className="flex-1 p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent text-sm"
+                    >
+                      <option value="name">Sort by Name</option>
+                      <option value="experience">Sort by Experience</option>
+                      <option value="slots">Sort by Available Slots</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Doctors List */}
+                <div className="space-y-3 py-4 max-h-96 overflow-y-auto px-2">
+                  {filteredDoctors.map((doctor) => {
                     if (!booking.selectedDate) return null;
                     
-                    const selectedDate = new Date(booking.selectedDate + 'T00:00:00');
-                    const availability = getAvailabilityForDateAndDoctor(selectedDate, doctor._id);
-                    const isAvailable = availability.length > 0;
+                    const availability = dateAvailability[booking.selectedDate]?.[doctor._id] || [];
+                    const availableSlots = availability.filter(slot => !slot.isBooked);
+                    const isAvailable = availableSlots.length > 0;
 
                     return (
                       <button
@@ -369,13 +680,19 @@ export default function Planning() {
                             <span className={`text-sm font-medium ${
                               isAvailable ? 'text-lime-600' : 'text-slate-400'
                             }`}>
-                              {isAvailable ? `${availability.length} slots` : 'Unavailable'}
+                              {isAvailable ? `${availableSlots.length} slots` : 'Unavailable'}
                             </span>
                           </div>
                         </div>
                       </button>
                     );
                   })}
+
+                  {filteredDoctors.length === 0 && (
+                    <div className="text-center py-8 text-slate-500">
+                      No doctors found matching your criteria
+                    </div>
+                  )}
                 </div>
 
                 <AlertDialogFooter>
@@ -388,58 +705,61 @@ export default function Planning() {
 
             {/* Time Selection Step */}
             {booking.step === 'time' && (
-              <>
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-lime-600" />
-                    Select a Time Slot
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Available appointments with{' '}
-                    <span className="font-semibold">
-                      Dr. {getSelectedDoctor()?.prenom} {getSelectedDoctor()?.nom}
-                    </span>{' '}
-                    on{' '}
-                    {booking.selectedDate && new Date(booking.selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
+  <>
+    <AlertDialogHeader>
+      <AlertDialogTitle className="flex items-center gap-2">
+        <Clock className="h-5 w-5 text-lime-600" />
+        Select a Time Slot
+      </AlertDialogTitle>
+      <AlertDialogDescription>
+        Available appointments with{' '}
+        <span className="font-semibold">
+          Dr. {getSelectedDoctor()?.prenom} {getSelectedDoctor()?.nom}
+        </span>{' '}
+        on{' '}
+        {booking.selectedDate && new Date(booking.selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })}
+      </AlertDialogDescription>
+    </AlertDialogHeader>
 
-                <div className="grid grid-cols-3 gap-3 py-4">
-                  {allTimeSlots.map((time) => {
-                    const isAvailable = getAvailabilityForSelectedDoctor().includes(time);
-
-                    return (
-                      <button
-                        key={time}
-                        onClick={() => isAvailable && handleTimeSelect(time)}
-                        disabled={!isAvailable}
-                        className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-                          isAvailable
-                            ? 'bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white shadow-sm hover:shadow-md'
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                        }`}
-                      >
-                        {time}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <AlertDialogFooter>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setBooking({ ...booking, step: 'doctor' })}
-                  >
-                    Back
-                  </Button>
-                </AlertDialogFooter>
-              </>
+    <div className="grid grid-cols-3 gap-3 py-4">
+      {getAvailabilityForSelectedDoctor().map((slot) => {
+        const isAvailable = !slot.isBooked;
+        
+        return (
+          <button
+            key={slot.datetime}
+            onClick={() => isAvailable && handleTimeSelect(slot.time)}
+            disabled={!isAvailable}
+            className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+              isAvailable
+                ? 'bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white shadow-sm hover:shadow-md cursor-pointer'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {slot.time}
+            {!isAvailable && (
+              <div className="text-xs mt-1 opacity-75">Booked</div>
             )}
+          </button>
+        );
+      })}
+    </div>
+
+    <AlertDialogFooter>
+      <Button 
+        variant="outline" 
+        onClick={() => setBooking({ ...booking, step: 'doctor' })}
+      >
+        Back
+      </Button>
+    </AlertDialogFooter>
+  </>
+)}
 
             {/* Motif Step */}
             {booking.step === 'motif' && (

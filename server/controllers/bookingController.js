@@ -6,12 +6,8 @@ import mongoose from "mongoose";
 // @route   POST /api/bookings
 // @access  Public
 export const createBooking = async (req, res) => {
-  const session = await mongoose.startSession();
-  
   try {
-    session.startTransaction();
-    
-    const { doctorId, datetime, motif, patientId } = req.body;
+    const { doctorId, datetime, motif, patientId, slotId } = req.body;
 
     // Validate required fields
     if (!doctorId || !datetime || !motif || !patientId) {
@@ -29,10 +25,9 @@ export const createBooking = async (req, res) => {
       medecin: doctorId,
       datetime: appointmentDate,
       isBooked: false
-    }).session(session);
+    });
 
     if (!availableSlot) {
-      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Selected time slot is no longer available'
@@ -50,16 +45,15 @@ export const createBooking = async (req, res) => {
       motif: motif,
       patient: patientId,
       medecin: doctorId,
+      slot: slotId,
       status: "scheduled"
     });
 
-    const savedAppointment = await appointment.save({ session });
+    const savedAppointment = await appointment.save();
 
     // Mark slot as booked
     availableSlot.isBooked = true;
-    await availableSlot.save({ session });
-
-    await session.commitTransaction();
+    await availableSlot.save();
 
     // Populate the saved appointment with doctor and patient details
     const populatedAppointment = await Rdv.findById(savedAppointment._id)
@@ -73,7 +67,6 @@ export const createBooking = async (req, res) => {
     });
 
   } catch (error) {
-    await session.abortTransaction();
     console.error('Error creating booking:', error);
     
     if (error.name === 'ValidationError') {
@@ -84,12 +77,18 @@ export const createBooking = async (req, res) => {
       });
     }
 
+    // Handle duplicate booking attempts
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Appointment already exists for this time slot'
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Server error while creating booking'
     });
-  } finally {
-    session.endSession();
   }
 };
 
@@ -147,17 +146,12 @@ export const getDoctorAppointments = async (req, res) => {
 // @route   PUT /api/bookings/:id/cancel
 // @access  Public
 export const cancelAppointment = async (req, res) => {
-  const session = await mongoose.startSession();
-  
   try {
-    session.startTransaction();
-    
     const { id } = req.params;
 
-    const appointment = await Rdv.findById(id).session(session);
+    const appointment = await Rdv.findById(id);
 
     if (!appointment) {
-      await session.abortTransaction();
       return res.status(404).json({
         success: false,
         message: 'Appointment not found'
@@ -165,7 +159,6 @@ export const cancelAppointment = async (req, res) => {
     }
 
     if (appointment.status === 'canceled') {
-      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Appointment is already canceled'
@@ -174,7 +167,7 @@ export const cancelAppointment = async (req, res) => {
 
     // Update appointment status
     appointment.status = 'canceled';
-    await appointment.save({ session });
+    await appointment.save();
 
     // Free up the time slot
     await AvailableSlot.findOneAndUpdate(
@@ -183,11 +176,8 @@ export const cancelAppointment = async (req, res) => {
         datetime: appointment.datetime,
         isBooked: true
       },
-      { isBooked: false },
-      { session }
+      { isBooked: false }
     );
-
-    await session.commitTransaction();
 
     res.json({
       success: true,
@@ -196,13 +186,10 @@ export const cancelAppointment = async (req, res) => {
     });
 
   } catch (error) {
-    await session.abortTransaction();
     console.error('Error canceling appointment:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while canceling appointment'
     });
-  } finally {
-    session.endSession();
   }
 };

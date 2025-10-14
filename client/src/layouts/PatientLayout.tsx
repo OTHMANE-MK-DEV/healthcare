@@ -23,12 +23,12 @@ const patientMenu = [
     href: "/patient/planning",
     description: "Doctor Schedule"
   },
-  // {
-  //   icon: BookCheck,
-  //   label: "RDVs",
-  //   href: "/patient/appointments",
-  //   description: "Appointments"
-  // },
+  {
+    icon: BookCheck,
+    label: "RDVs",
+    href: "/patient/appointments",
+    description: "Appointments"
+  },
   {
     icon: UsersIcon,
     label: "My Doctors",

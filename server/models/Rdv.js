@@ -12,7 +12,8 @@ const rdvSchema = new mongoose.Schema({
   notified: { type: Boolean, default: false },
   motif: String,
   patient: { type: mongoose.Schema.Types.ObjectId, ref: "Patient", required: true },
-  medecin: { type: mongoose.Schema.Types.ObjectId, ref: "Medecin", required: true }
+  medecin: { type: mongoose.Schema.Types.ObjectId, ref: "Medecin", required: true },
+  slot: { type: mongoose.Schema.Types.ObjectId, ref: "AvailableSlot", required: true },
 }, { timestamps: true });
 
 export default mongoose.model("Rdv", rdvSchema);
