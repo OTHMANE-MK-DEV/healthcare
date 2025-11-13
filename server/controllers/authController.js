@@ -396,14 +396,14 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Generate JWT token (using your existing JWT_KEY)
+    // Generate JWT token (using your existing JWT_SECRET)
     const token = jwt.sign(
       { 
         userId: user._id, 
         username: user.username,
         role: user.role 
       },
-      process.env.JWT_KEY, // Using your existing JWT_KEY
+      process.env.JWT_SECRET, // Using your existing JWT_SECRET
       { expiresIn: '7d' }
     );
 

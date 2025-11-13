@@ -17,6 +17,8 @@ import AppointmentRouter from "./routes/appointments.js";
 // import User from "./models/User.js"
 
 
+console.log('hello')
+
 dotenv.config();
 
 const app = express();
