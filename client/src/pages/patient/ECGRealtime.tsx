@@ -499,12 +499,12 @@ const calculateHeartRate = (data) => {
             >
               {isAnalyzing ? 'ANALYZING...' : 'ANALYZE'}
             </button>
-            <button 
+            {/* <button 
               onClick={() => navigate('/patient')} 
               className="bg-gray-700 text-white font-mono py-2 rounded hover:bg-gray-600"
             >
               MENU
-            </button>
+            </button> */}
             <button 
               onClick={() => navigate('/patient')} 
               className="bg-gray-700 text-white font-mono py-2 rounded hover:bg-gray-600"
