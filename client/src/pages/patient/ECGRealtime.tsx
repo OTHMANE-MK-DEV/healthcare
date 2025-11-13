@@ -153,30 +153,16 @@ const ECGRealtime = () => {
   
   const handleAnalysisSummary = (summaryData) => {
   console.log('Processing summary:', summaryData);
-  console.log('Current heart rate:', heartRate);
-  console.log('Peak count:', heartRateCalcRef.current.length);
-
-  // Calculate HR one more time from collected peaks
-  let finalBPM = heartRate;
   
-  if (heartRateCalcRef.current.length >= 2) {
-    const intervals = [];
-    for (let i = 1; i < heartRateCalcRef.current.length; i++) {
-      intervals.push(heartRateCalcRef.current[i] - heartRateCalcRef.current[i - 1]);
-    }
-    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const calculatedBPM = Math.round(60000 / avgInterval);
-    
-    if (calculatedBPM >= 40 && calculatedBPM <= 180) {
-      finalBPM = calculatedBPM;
-      console.log('✓ Final calculated BPM:', finalBPM);
-    }
-  } else {
-    console.warn('⚠️ Not enough peaks detected for HR calculation');
-  }
+  // 🔥 USE THE BPM FROM BACKEND - don't recalculate!
+  const finalBPM = summaryData.bpm || heartRate;
+  
+  console.log('✓ Using BPM from backend:', finalBPM);
 
   const finalSummary = { ...summaryData, bpm: finalBPM };
 
+  // Update the displayed heart rate immediately
+  setHeartRate(finalBPM);
   setAnalysisResult(finalSummary);
   stopAnalysis();
   saveECGToDatabase(finalSummary);
@@ -227,21 +213,24 @@ const ECGRealtime = () => {
   };
 
  // Improved HR calculation
+// Updated HR calculation with better threshold
 const calculateHeartRate = (data) => {
   if (!data.leads || data.leads['II'] === undefined) return;
 
   const leadIIValue = data.leads['II'];
   const now = Date.now();
 
-  // Lower threshold to match your signal
-  const threshold = 0.05;
+  // Higher threshold to match the new baseline (1.7) + R peak
+  const threshold = 2.5; // Detect R-peaks above 2.5
 
   if (leadIIValue > threshold) {
-    if (now - lastPeakTimeRef.current > 300) {
+    // Minimum 400ms between peaks (max 150 bpm)
+    if (now - lastPeakTimeRef.current > 400) {
       heartRateCalcRef.current.push(now);
       lastPeakTimeRef.current = now;
 
-      if (heartRateCalcRef.current.length > 8) {
+      // Keep last 10 peaks
+      if (heartRateCalcRef.current.length > 10) {
         heartRateCalcRef.current.shift();
       }
 
@@ -253,7 +242,8 @@ const calculateHeartRate = (data) => {
         const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
         const bpm = Math.round(60000 / avgInterval);
 
-        if (bpm >= 40 && bpm <= 180) {
+        // Only accept BPM in realistic range
+        if (bpm >= 50 && bpm <= 120) {
           setHeartRate(bpm);
         }
       }
@@ -388,19 +378,19 @@ const calculateHeartRate = (data) => {
     <div className="w-screen h-screen bg-gray-900 p-4 flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
-        <div className="text-white text-lg font-mono">
+        {/* <div className="text-white text-lg font-mono">
           {patientInfo.name} {patientInfo.gender} {patientInfo.age}
-        </div>
-        <div className="text-white text-lg font-mono">
+        </div> */}
+        {/* <div className="text-white text-lg font-mono">
           Gains x {settings.gains}
-        </div>
+        </div> */}
       </div>
       
       {/* Settings row */}
       <div className="flex justify-between items-center mb-2">
-        <div className="text-gray-400 text-sm font-mono">
+        {/* <div className="text-gray-400 text-sm font-mono">
           HighOut: {settings.highOut} LowOut: {settings.lowOut} Hum: {settings.hum} Pace: {settings.pace}
-        </div>
+        </div> */}
         <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
           isConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
         }`}>
@@ -412,11 +402,11 @@ const calculateHeartRate = (data) => {
       </div>
 
       {/* Debug info */}
-      {debugInfo && (
+      {/* {debugInfo && (
         <div className="mb-2 text-xs font-mono text-yellow-400 bg-gray-800 px-2 py-1 rounded">
           Debug: {debugInfo}
         </div>
-      )}
+      )} */}
       
       {/* Main content */}
       <div className="flex flex-1 gap-4">
