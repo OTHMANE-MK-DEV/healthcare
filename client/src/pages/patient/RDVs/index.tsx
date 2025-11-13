@@ -84,14 +84,22 @@ const PatientRDVsPage: React.FC = () => {
     }
 
     // Filter by search term
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(apt => 
-        `${apt.medecin.prenom} ${apt.medecin.nom}`.toLowerCase().includes(searchLower) ||
-        apt.medecin.specialite.toLowerCase().includes(searchLower) ||
-        apt.motif.toLowerCase().includes(searchLower)
+  if (searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    filtered = filtered.filter(apt => {
+      const prenom = apt.medecin?.prenom?.toLowerCase() || "";
+      const nom = apt.medecin?.nom?.toLowerCase() || "";
+      const specialite = apt.medecin?.specialite?.toLowerCase() || "";
+      const motif = apt.motif?.toLowerCase() || "";
+
+      return (
+        `${prenom} ${nom}`.includes(searchLower) ||
+        specialite.includes(searchLower) ||
+        motif.includes(searchLower)
       );
-    }
+    });
+  }
+
 
     // Sort by date (newest first)
     filtered.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());

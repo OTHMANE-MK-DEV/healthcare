@@ -449,7 +449,7 @@ const calculateHeartRate = (data) => {
                     axisLine={{ stroke: '#666' }}
                   />
                   <YAxis 
-                    domain={[-1.5, 1.5]}
+                    domain={[0, 3]}
                     tick={false}
                     axisLine={{ stroke: '#666' }}
                   />
