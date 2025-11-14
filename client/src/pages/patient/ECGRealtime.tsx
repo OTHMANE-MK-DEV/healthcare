@@ -121,7 +121,7 @@ const ECGRealtime = () => {
       // Regular live data
       if (isAnalyzing) {
         updateECGData(data);
-        calculateHeartRate(data);
+        // calculateHeartRate(data);
         rawDataBufferRef.current.push(data);
         
         // Update debug info
